@@ -8,7 +8,8 @@
     sh scripts/check_hooks.sh
     ANDROID_JAR=/path/android-35/android.jar sh scripts/check_hooks.sh
 
-发现不一致时返回非零。
+发现不一致时返回非零。无法判定的项（如拿不到真实 API 级别、找不到 javap）记为 SKIP，
+既不计入通过，也不误报成功。
 """
 import os
 import re
@@ -23,7 +24,12 @@ results = []
 
 
 def check(name, ok, detail=""):
-    results.append((name, bool(ok), detail))
+    results.append((name, "ok" if ok else "FAIL", detail))
+
+
+def skip(name, detail=""):
+    """无法判定时记 SKIP：既不算通过，也不误报成功。"""
+    results.append((name, "SKIP", detail))
 
 
 def read(fn):
@@ -86,33 +92,55 @@ def main():
         check("CAPS 仍覆盖 " + pkg, pkg in priv)
 
     # ---- E. 可选：签名在平台 jar 里真实存在 ----
+    # 注意：这里校验的是公开基类 android.content.pm.PackageManager 的声明。
+    # 运行时被 hook 的是框架内部类 android.app.ApplicationPackageManager，
+    # 它不在 SDK 平台包里（javap 会报 class not found），因此本项只能确认
+    # 「基类声明了这些重载」，不能证明框架类实际覆写；后者需真机日志确认。
     android_jar = os.environ.get("ANDROID_JAR", "")
     javap = shutil.which("javap")
-    if android_jar and os.path.isfile(android_jar) and javap:
-        api = platform_api(android_jar)
-        out = javap_out(javap, android_jar, "android.content.pm.PackageManager")
-        has_int_p = "getInstalledPackages(int)" in out
-        has_int_a = "getInstalledApplications(int)" in out
-        has_flags_p = "getInstalledPackages(android.content.pm.PackageManager$PackageInfoFlags)" in out
-        has_flags_a = "getInstalledApplications(android.content.pm.PackageManager$ApplicationInfoFlags)" in out
-        check("平台 jar(%s): getInstalledPackages(int) 存在" % api, has_int_p)
-        check("平台 jar(%s): getInstalledApplications(int) 存在" % api, has_int_a)
-        if api >= 33:
-            check("平台 jar(%s): flags 重载存在" % api, has_flags_p and has_flags_a)
-        else:
-            check("平台 jar(%s): flags 重载应不存在（旧系统）" % api,
-                  not has_flags_p and not has_flags_a)
+    if not android_jar:
+        skip("平台签名核对：未设置 ANDROID_JAR（跳过）")
+    elif not os.path.isfile(android_jar):
+        skip("平台签名核对：ANDROID_JAR 不是文件（跳过）：%s" % android_jar)
+    elif not javap:
+        skip("平台签名核对：找不到 javap（跳过）")
     else:
-        print("提示：设置 ANDROID_JAR 后可额外校验签名在平台 jar 里存在（当前跳过）")
+        api = platform_api(android_jar)
+        if api <= 0:
+            # 例如 Maven 的 com.google.android:android stub：没有 source.properties，
+            # 拿不到真实 API 级别，无法判定 flags 重载应否存在 —— 记 SKIP，不得平凡通过。
+            skip("平台签名核对：无法确认平台 API 级别（如 Maven stub，跳过）")
+        else:
+            out = javap_out(javap, android_jar, "android.content.pm.PackageManager")
+            has_int_p = "getInstalledPackages(int)" in out
+            has_int_a = "getInstalledApplications(int)" in out
+            has_flags_p = ("getInstalledPackages("
+                           "android.content.pm.PackageManager$PackageInfoFlags)") in out
+            has_flags_a = ("getInstalledApplications("
+                           "android.content.pm.PackageManager$ApplicationInfoFlags)") in out
+            check("平台 jar(%s): 基类声明 getInstalledPackages(int)" % api, has_int_p)
+            check("平台 jar(%s): 基类声明 getInstalledApplications(int)" % api, has_int_a)
+            if api >= 33:
+                check("平台 jar(%s): 基类声明 flags 重载" % api, has_flags_p and has_flags_a)
+            else:
+                check("平台 jar(%s): flags 重载应不存在（旧系统）" % api,
+                      not has_flags_p and not has_flags_a)
 
     # ---- 输出 ----
     bad = 0
-    for name, ok, detail in results:
-        print(("  ok  " if ok else "  FAIL") + "  " + name + (("  " + detail) if detail else ""))
-        if not ok:
+    skipped = 0
+    for name, status, detail in results:
+        if status == "ok":
+            mark = "  ok  "
+        elif status == "SKIP":
+            mark = "  SKIP"
+            skipped += 1
+        else:
+            mark = "  FAIL"
             bad += 1
+        print(mark + "  " + name + (("  " + detail) if detail else ""))
     print()
-    print("共 %d 项，失败 %d 项" % (len(results), bad))
+    print("共 %d 项，失败 %d 项，跳过 %d 项" % (len(results), bad, skipped))
     return 1 if bad else 0
 
 

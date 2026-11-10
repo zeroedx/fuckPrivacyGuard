@@ -40,8 +40,13 @@
 
 ### 应用清单 Hook 的跨版本签名核对（源码确认）
 
-对 `ApplicationPackageManager#getInstalledPackages` / `getInstalledApplications` 的四组重载，
-用 Google 官方平台包静态核对（`sh scripts/check_hooks.sh`，`ANDROID_JAR` 指向对应平台）：
+对 `getInstalledPackages` / `getInstalledApplications` 的四组重载，用 Google 官方平台包
+静态核对（`sh scripts/check_hooks.sh`，`ANDROID_JAR` 指向对应平台）。
+
+说明：脚本 `javap` 的是**公开基类** `android.content.pm.PackageManager` 的声明。
+运行时被 hook 的是框架内部类 `android.app.ApplicationPackageManager`，它不在 SDK
+平台包里（`javap` 会报 class not found），因此下表只能确认**基类声明了这些重载**，
+不能证明框架类实际覆写；后者需真机日志确认。
 
 | API | `(int)` 重载 | flags 重载（`PackageInfoFlags` / `ApplicationInfoFlags`） |
 |---|---|---|
@@ -52,9 +57,10 @@
 | 36（Android 16） | 存在 | 存在 |
 | 37（Android 17） | 存在 | 存在 |
 
-结论：**flags 重载自 API 33 起存在**；代码用字符串反射取该类，旧系统（< 33）取不到时
-只挂 `(int)` 重载，不会触发 `NoClassDefFoundError`（`javap` 已确认编译产物里 flags 类型
-只作为字符串常量出现，没有 `.class` 字面量）。
+结论：**flags 重载自 API 33 起在基类上存在**；代码用字符串反射取该类，旧系统（< 33）
+上该类**本就不存在**（并非「取不到」），只挂 `(int)` 重载，不会触发
+`NoClassDefFoundError`（`javap` 已确认编译产物里 flags 类型只作为字符串常量出现，
+没有 `.class` 字面量）。
 
 ## 三、已覆盖的拦截能力（源码确认）
 
@@ -118,9 +124,10 @@
 ### 可重复执行的自查（源码确认）
 
 - `sh tests/run.sh`：纯 JVM 单元测试，覆盖 `noteHit` 的首次命中去重、去重键含类名/方法名/
-  参数签名、不记录实参内容；不需要设备或 SDK。
+  参数签名、不记录实参内容，以及多线程并发去重；不需要设备或 SDK。
 - `sh scripts/check_hooks.sh`：静态核对 Hook 注册与默认开关；设置 `ANDROID_JAR` 后
-  额外用 `javap` 校验签名在目标平台 jar 里真实存在。
+  额外用 `javap` 校验签名在目标平台 jar 里真实存在。无法判定的项（未设 `ANDROID_JAR`、
+  拿不到真实 API 级别、找不到 `javap`）记为 `SKIP`，不计入通过。
 
 
 ## 四、尚未覆盖或尚未验证的能力

@@ -15,7 +15,8 @@ import io.github.libxposed.api.XposedInterface;
  *
  * 验证：
  *   1. 首次命中去重：同一签名重复调用只记一条；
- *   2. 去重键含类名 / 方法名 / 参数签名：不同重载、不同类各自成键；
+ *   2. 去重键含类名 / 方法名 / 参数签名：同一类里不同重载各自成键
+ *      （跨类同名方法的成键由去重键含类名保证，本测试只用了一个类，未单独覆盖）；
  *   3. 语义标签参与去重键，同一方法带标签与不带标签互不影响；
  *   4. 只记方法身份，不记任何实参内容；
  *   5. 拿不到 Executable 时不记录、不抛异常。
@@ -46,13 +47,13 @@ public final class HooksNoteHitTest {
         expectLineContains(idOverInt + " hit", "格式为 类#方法(参数) hit");
         expectNoSensitiveValue("SECRET_IMEI_861234567890123");
 
-        // 2. 不同重载各自成键（含基本类型区分）
+        // 2. 同一类里不同重载各自成键（含基本类型区分）
         Hooks.noteHit(new FakeChain(overLong));
         Hooks.noteHit(new FakeChain(overString));
         Hooks.noteHit(new FakeChain(multi));
         Hooks.noteHit(new FakeChain(arr));
         Hooks.noteHit(new FakeChain(ctorInt));
-        expect(6, "不同重载/不同类各自成键");
+        expect(6, "同一类里不同重载各自成键");
 
         // 3. 标签参与去重键：同一方法带标签记一条，且与无标签那条并存
         Hooks.noteHit(new FakeChain(overInt), "applist");
