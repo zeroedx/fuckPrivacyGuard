@@ -1,4 +1,4 @@
-package io.github.vivibibi30.hyperpguard;
+package io.github.zeroedx.fuckprivacyguard;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -37,7 +37,7 @@ import io.github.libxposed.service.XposedServiceHelper;
 public class MainActivity extends Activity {
 
     private static final String TAG = "fuckPrivacyGuard";
-    private static final String LAUNCHER_ALIAS = "io.github.vivibibi30.hyperpguard.Launcher";
+    private static final String LAUNCHER_ALIAS = "io.github.zeroedx.fuckprivacyguard.Launcher";
     private static final int DISCLAIMER_VER = 14;
 
     private Ui ui;
@@ -657,7 +657,7 @@ public class MainActivity extends Activity {
             String lsp = ModuleState.I.execShell(
                     "f=$(ls -t /data/adb/lspd/log/modules_*.log 2>/dev/null | head -1); "
                             + "[ -n \"$f\" ] && tail -n 4000 \"$f\""
-                            + " | grep -oE '\\([a-z0-9_.]+\\)\\[io\\.github\\.vivibibi30\\.hyperpguard'"
+                            + " | grep -oE '\\([a-z0-9_.]+\\)\\[io\\.github\\.zeroedx\\.fuckprivacyguard'"
                             + " | sed 's/^(//; s/).*//' | sort -u");
             sb.append(lsp.trim().isEmpty() ? "（日志里没有本模块的加载记录）" : lsp.trim());
 

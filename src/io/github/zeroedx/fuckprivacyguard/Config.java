@@ -1,4 +1,4 @@
-package io.github.vivibibi30.hyperpguard;
+package io.github.zeroedx.fuckprivacyguard;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -12,7 +12,7 @@ import android.content.SharedPreferences;
  */
 public final class Config {
 
-    public static final String PKG = "io.github.vivibibi30.hyperpguard";
+    public static final String PKG = "io.github.zeroedx.fuckprivacyguard";
     public static final String PREFS = "pg";
     public static final String VERSION = "2.0.0";
 
@@ -200,7 +200,7 @@ public final class Config {
             } finally {
                 if (p != null) try { p.destroy(); } catch (Throwable ignored) { }
             }
-        }, "hyperpguard-config-sync").start();
+        }, "fuckprivacyguard-config-sync").start();
     }
 
     /** 界面读取开关：本地没有时回落到 Settings，清过数据也不会显示成默认值 */
@@ -249,7 +249,7 @@ public final class Config {
     }
 
     /** 唯一的对外写入：Settings.Global 下的一个自定义 key */
-    public static final String GLOBAL_KEY = "hyperpguard_conf";
+    public static final String GLOBAL_KEY = "fuckprivacyguard_conf";
 
     /** hook 侧读到的开关，进程内缓存一份，读不到就用各规则的默认值 */
     private static final java.util.Map<String, Boolean> REMOTE =

@@ -1,12 +1,15 @@
 感谢您使用 fuckPrivacyGuard。
 
-2.0.0 是一次品牌与界面的整体升级：项目更名为 fuckPrivacyGuard，设置界面由单页改为底部导航的六个页面，并换用新的品牌图标。**拦截逻辑、配置协议、默认值与 LSPosed 作用域行为均未改动**，覆盖安装即可，无需重新配置。
+2.0.0 是一次品牌与界面的整体升级：项目更名为 fuckPrivacyGuard，设置界面由单页改为底部导航的六个页面，并换用新的品牌图标。同时，本项目改为**完全独立**的应用与 LSPosed 模块，不再与上游 HyperPGuard 共用包名与签名。**拦截逻辑、76 个配置键、默认值与作用域行为均未改动**，但因包名与签名变化，**无法覆盖安装上游 HyperPGuard**：从上游迁移需先卸载上游，作用域不会自动迁移。
 
 ## 品牌
 
 - 应用名、日志标签、APK 产物名统一为 `fuckPrivacyGuard`
 - 新增品牌图标：由提供的原始 PNG 按比例生成各密度 `mipmap` 与自适应图标前景，未重绘图案
-- 应用包名 `io.github.vivibibi30.hyperpguard`、签名、配置键与 `Settings.Global` 协议键保持不变，保证覆盖升级与作用域不回退
+- **独立包名**：applicationId / Java 包名改为 `io.github.zeroedx.fuckprivacyguard`
+- **独立签名**：改用新的正式签名证书（非上游 `debug.keystore`），证书 SHA-256 与上游不同
+- `Settings.Global` 配置通道键由 `hyperpguard_conf` 改为 `fuckprivacyguard_conf`（避免与旧模块冲突）
+- 76 个 `K_*` 配置键名、默认值与配置格式保持不变；升级到新包名后需重新设置一次开关
 
 ## 界面
 

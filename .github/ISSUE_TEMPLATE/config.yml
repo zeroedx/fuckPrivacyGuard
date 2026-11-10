@@ -1,8 +1,8 @@
 blank_issues_enabled: true
 contact_links:
   - name: 先搜索已有反馈 / Search existing issues
-    url: https://github.com/vivibibi30/hyperpguard/issues?q=is%3Aissue
+    url: https://github.com/zeroedx/fuckPrivacyGuard/issues?q=is%3Aissue
     about: 提交前确认是否已有相同问题，避免重复开单 / Check before filing to avoid duplicates
   - name: 自定义规则使用说明 / Custom rules guide
-    url: https://github.com/vivibibi30/hyperpguard/blob/main/docs/CUSTOM-RULES.md
+    url: https://github.com/zeroedx/fuckPrivacyGuard/blob/main/docs/CUSTOM-RULES.md
     about: 域名、域名/路径、类名#方法 三种写法与限制 / How custom rules work

@@ -15,6 +15,8 @@ sh tests/run.sh                 # 纯 JVM 单元测试（noteHit 去重），不
 
 构建只需要 JDK 与 `javac --release 11`、`d8`、`aapt2`、`zipalign`、`apksigner`，没有 Gradle。CI 走的是同一个脚本。
 
+**签名材料不入库**：构建从仓库外读取（环境变量优先，其次 `~/.config/fuckprivacyguard/signing.env`）。缺 `KEYSTORE` / `KEY_ALIAS` / `STORE_PASS` / `EXPECT_SHA256` 时直接失败，绝不回退到内置或上游证书。包名固定为 `io.github.zeroedx.fuckprivacyguard`，不要改回上游包名或复用上游 `debug.keystore`。
+
 ## 写代码时
 
 - **注入的 dex 尽量保持精简**：它会被加载进十几个系统进程，现在只有 libxposed service 一项必需三方组件；界面全部原生自绘，加库前先想想是否值得

@@ -29,27 +29,62 @@ if [ -z "$AINC" ]; then
   if [ -f "$ROOT/android-stub.jar" ]; then AINC=$ROOT/android-stub.jar; else AINC=$ANDROID_JAR; fi
 fi
 
-KS=${KEYSTORE:-$ROOT/debug.keystore}
 # compileOnly：由框架在运行时提供，不打进 dex
 APIX=$ROOT/libs/libxposed-api.jar
 # 必须打进 dex：libxposed service + interface（IXposedService$Stub 在 interface 包里）
 LXP=$ROOT/libs/libxposed-service.jar
 
-# 固定签名：仓库内 debug.keystore 必须存在且证书指纹不变。
-# 换证书 = 无法覆盖安装 = 必须卸载重装 = uid 变化 = KernelSU 按 uid 记录的
-# root 授权失效（表现为「每次更新都要重新授权」）。
-EXPECT_SHA256=${EXPECT_SHA256:-cacdf86d34ff7f7de0ed99467364ff5fc9d898f6c61d2202a02a34050d8cdcd3}
+# ---- 签名配置 ----
+# 本项目使用独立的正式签名证书，不复用上游 HyperPGuard 的 debug.keystore。
+# 签名材料（keystore / 别名 / 密码 / 期望指纹）一律从仓库外的配置读取，
+# 绝不入库、绝不写日志。优先环境变量，其次外部配置文件（默认 ~/.config/
+# fuckprivacyguard/signing.env，可用 SIGNING_ENV 覆盖）。
+#
+#   KEYSTORE    keystore 文件路径（必填）
+#   KEY_ALIAS   别名（必填）
+#   STORE_PASS  keystore 密码（必填）
+#   KEY_PASS    私钥密码（缺省与 STORE_PASS 相同）
+#   EXPECT_SHA256  期望的证书 SHA-256（64 位小写 hex，必填；防止用错密钥）
+#
+# 缺少任何必需项时直接失败，不静默回退到任何内置/上游证书。
 
+SIGNING_ENV=${SIGNING_ENV:-$HOME/.config/fuckprivacyguard/signing.env}
+if [ -f "$SIGNING_ENV" ]; then
+  # shellcheck disable=SC1090
+  . "$SIGNING_ENV"
+fi
+
+KS=${KEYSTORE:-}
+ALIAS=${KEY_ALIAS:-}
+STORE_PASS=${STORE_PASS:-}
+KEY_PASS=${KEY_PASS:-$STORE_PASS}
+EXPECT_SHA256=${EXPECT_SHA256:-}
+
+missing=""
+[ -n "$KS" ]         || missing="$missing KEYSTORE"
+[ -n "$ALIAS" ]      || missing="$missing KEY_ALIAS"
+[ -n "$STORE_PASS" ] || missing="$missing STORE_PASS"
+[ -n "$EXPECT_SHA256" ] || missing="$missing EXPECT_SHA256"
+if [ -n "$missing" ]; then
+  echo "错误：缺少签名配置项：$missing" >&2
+  echo "请在环境变量或 $SIGNING_ENV 中提供，例如：" >&2
+  echo "  KEYSTORE=/path/release.jks KEY_ALIAS=fuckprivacyguard \\" >&2
+  echo "  STORE_PASS=... EXPECT_SHA256=<64-hex> sh build.sh" >&2
+  exit 1
+fi
 if [ ! -f "$KS" ]; then
-  echo "错误：缺少签名文件 $KS" >&2
-  echo "本仓库自带 debug.keystore（证书 $EXPECT_SHA256），缺失时不要自动生成新密钥。" >&2
+  echo "错误：找不到 keystore：$KS" >&2
   exit 1
 fi
 
-KS_SHA256=$(keytool -list -v -keystore "$KS" -storepass android 2>/dev/null \
+KS_SHA256=$(keytool -list -v -keystore "$KS" -storepass "$STORE_PASS" -alias "$ALIAS" 2>/dev/null \
   | sed -n 's/.*SHA256: //p' | head -1 | tr -d '\r' | tr 'A-F' 'a-f' | tr -d ':')
+if [ -z "$KS_SHA256" ]; then
+  echo "错误：无法读取 keystore 证书指纹（keystore/别名/密码是否正确？）" >&2
+  exit 1
+fi
 if [ "$KS_SHA256" != "$EXPECT_SHA256" ]; then
-  echo "错误：keystore 证书指纹与固定值不一致" >&2
+  echo "错误：keystore 证书指纹与 EXPECT_SHA256 不一致" >&2
   echo "  实际 $KS_SHA256" >&2
   echo "  期望 $EXPECT_SHA256" >&2
   exit 1
@@ -89,7 +124,8 @@ rm -rf build/META-INF && cp -r META-INF build/
 "$ZIPALIGN" -f 4 build/app-unsigned.apk build/app-aligned.apk
 
 echo "[6/6] sign"
-"$APKSIGNER" sign --ks "$KS" --ks-pass pass:android --key-pass pass:android \
+"$APKSIGNER" sign --ks "$KS" --ks-key-alias "$ALIAS" \
+  --ks-pass "pass:$STORE_PASS" --key-pass "pass:$KEY_PASS" \
   --out fuckPrivacyGuard.apk build/app-aligned.apk
 
 "$APKSIGNER" verify --print-certs fuckPrivacyGuard.apk 2>/dev/null | grep "certificate SHA-256" || true

@@ -1,4 +1,4 @@
-package io.github.vivibibi30.hyperpguard;
+package io.github.zeroedx.fuckprivacyguard;
 
 import android.graphics.Typeface;
 import android.view.Gravity;

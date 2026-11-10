@@ -14,6 +14,8 @@
 >
 > 本项目源码
 
+> **独立应用**：自 2.0.0 起本项目使用独立包名 `io.github.zeroedx.fuckprivacyguard` 与独立签名证书，**无法覆盖安装上游 HyperPGuard**，反之亦然。从上游迁移需先卸载上游，LSPosed 作用域不会自动迁移，需重新勾选目标组件。
+
 ## 当前支持的版本
 
 Android 10 – Android 16 的 HyperOS，LSPosed 2.2.x（libxposed API 100+）。

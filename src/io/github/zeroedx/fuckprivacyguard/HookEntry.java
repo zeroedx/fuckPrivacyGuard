@@ -1,4 +1,4 @@
-package io.github.vivibibi30.hyperpguard;
+package io.github.zeroedx.fuckprivacyguard;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -117,7 +117,7 @@ public class HookEntry extends XposedModule {
                     Config.load(activityThreadContext(), pkg);
                     dispatchOnce(pkg, cl);
                 }
-            }, "hyperpguard-fallback");
+            }, "fuckprivacyguard-fallback");
             fallbackThread = fallback;
             fallback.start();
             Logs.i("waiting Application.onCreate: " + pkg);

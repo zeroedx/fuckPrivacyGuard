@@ -20,9 +20,19 @@
 
 改代码前建议先看 [AGENTS.md](AGENTS.md)（协作约定）与 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)（结构与扩展步骤）。
 
-本仓库即源码仓：`src/` 下是全部 Java 实现，`build.sh` 是完整构建脚本，用 `javac` + `d8` + `aapt2` + `zipalign` + `apksigner` 打包，不依赖 Gradle；`Releases` 里的 APK 由它构建。`Xposed-Modules-Repo/io.github.vivibibi30.hyperpguard` 只是 LSPosed 的索引仓库，只放 APK 与简介。
+本仓库即源码仓：`src/` 下是全部 Java 实现，`build.sh` 是完整构建脚本，用 `javac` + `d8` + `aapt2` + `zipalign` + `apksigner` 打包，不依赖 Gradle；`Releases` 里的 APK 由它构建。`Xposed-Modules-Repo/io.github.zeroedx.fuckprivacyguard` 只是 LSPosed 的索引仓库，只放 APK 与简介。
 
 > 仅供个人在自有设备上学习研究使用。使用前请阅读 [DISCLAIMER.txt](DISCLAIMER.txt)。名称中的 Hyper 指 HyperOS 平台，本项目与小米、中国联通等厂商无隶属或合作关系。
+
+## 独立应用与包名
+
+自 2.0.0 起，本项目是**完全独立**的应用与 LSPosed 模块，不再与上游 HyperPGuard 共用包名与签名：
+
+- applicationId / Java 包名：`io.github.zeroedx.fuckprivacyguard`
+- 应用名称：`fuckPrivacyGuard`
+- 签名：独立的正式签名证书（**非**上游的 `debug.keystore`）
+
+因此**无法覆盖安装上游 HyperPGuard**，也无法用上游 APK 覆盖本项目：两者被视为不同的应用。首次从上游迁移时需**先卸载上游**再安装本项目，卸载会清掉旧作用域配置——LSPosed 的作用域**不会自动迁移**，需要在 LSPosed → 模块 → fuckPrivacyGuard → 作用域 里重新勾选目标组件。签名不同也意味着升级本项目时**只能由同一把新证书签名的包**覆盖安装。
 
 ## 当前支持的版本
 
@@ -138,10 +148,23 @@ export ZIPALIGN=/path/to/zipalign APKSIGNER=/path/to/apksigner
 sh build.sh
 ```
 
+签名材料**不入库**，从仓库外读取：优先环境变量，其次 `~/.config/fuckprivacyguard/signing.env`（可用 `SIGNING_ENV` 指向别处）。缺少必需项时构建直接失败，不会回退到任何内置或上游证书。
+
+```sh
+# ~/.config/fuckprivacyguard/signing.env
+KEYSTORE=/path/to/release.jks   # 独立正式签名密钥
+KEY_ALIAS=fuckprivacyguard
+STORE_PASS=...                  # 私钥密码缺省与它相同
+KEY_PASS=...
+EXPECT_SHA256=<64 位小写证书指纹>  # 防止用错密钥
+```
+
+`EXPECT_SHA256` 是构建前的自检：keystore 实际指纹与它不一致就中止，避免误用其他密钥签名。CI 通过仓库 Secrets 注入同一组值。
+
 ## 源码结构
 
 ```
-src/io/github/vivibibi30/hyperpguard/
+src/io/github/zeroedx/fuckprivacyguard/
 ├── HookEntry.java      入口与按包分发（XposedModule#onPackageReady）
 ├── Config.java         开关常量
 ├── NetGuard.java       网络出口：URL / InetAddress / Socket + 规则匹配
@@ -182,7 +205,7 @@ build.sh              一键构建
 ## 适配边界
 
 - 完整的已覆盖 / 未覆盖 / 待验证清单见 [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)
-- 开关保持默认值时不会写进 `hyperpguard_conf`，`settings get` 里缺某个 key 不代表它关闭，以界面状态与日志为准
+- 开关保持默认值时不会写进 `fuckprivacyguard_conf`，`settings get` 里缺某个 key 不代表它关闭，以界面状态与日志为准
 - 域名名单可能漏项：地址可由配置下发；小米统计为整进程断网，SystemHelper 默认只拦上报域名，其余组件依赖隐私 API 层与方法层
 - 方法层类名随组件版本变化，日志里 `hook miss` 属正常，网络层与隐私 API 层不受影响
 - 使用 native 网络栈（Cronet 等）的请求不受 Java 层 hook 影响

@@ -18,7 +18,7 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(ROOT, "src", "io", "github", "vivibibi30", "hyperpguard")
+SRC = os.path.join(ROOT, "src", "io", "github", "zeroedx", "fuckprivacyguard")
 
 results = []
 

@@ -3,7 +3,7 @@
 # 用法：sh scripts/publish-lsposed.sh [APK]
 set -e
 
-DIST_REPO=${DIST_REPO:-Xposed-Modules-Repo/io.github.vivibibi30.hyperpguard}
+DIST_REPO=${DIST_REPO:-Xposed-Modules-Repo/io.github.zeroedx.fuckprivacyguard}
 APK=${1:-fuckPrivacyGuard.apk}
 [ -f "$APK" ] || { echo "找不到 $APK" >&2; exit 1; }
 

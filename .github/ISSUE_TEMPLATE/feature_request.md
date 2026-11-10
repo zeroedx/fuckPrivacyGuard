@@ -7,9 +7,9 @@ assignees: ''
 ---
 
 > [!IMPORTANT]
-> 提交前请先搜索[已有 issue](https://github.com/vivibibi30/hyperpguard/issues?q=is%3Aissue) 是否已经提过同一需求。相同需求重复开单只会重复阅读，不增加信息。
+> 提交前请先搜索[已有 issue](https://github.com/zeroedx/fuckPrivacyGuard/issues?q=is%3Aissue) 是否已经提过同一需求。相同需求重复开单只会重复阅读，不增加信息。
 >
-> Search [existing issues](https://github.com/vivibibi30/hyperpguard/issues?q=is%3Aissue) before filing. Duplicate requests add no information.
+> Search [existing issues](https://github.com/zeroedx/fuckPrivacyGuard/issues?q=is%3Aissue) before filing. Duplicate requests add no information.
 
 ## 需求 · What you want
 

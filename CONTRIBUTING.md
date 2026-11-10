@@ -4,7 +4,7 @@
 
 ## 提交 issue 前
 
-- 先搜索[已有 issue](https://github.com/vivibibi30/hyperpguard/issues?q=is%3Aissue)，同一问题请在原 issue 下补充，不要重复开单
+- 先搜索[已有 issue](https://github.com/zeroedx/fuckPrivacyGuard/issues?q=is%3Aissue)，同一问题请在原 issue 下补充，不要重复开单
 - 先在模块里点「自检」，确认总开关、作用域和已注入进程
 - 日志要脱敏：IMEI、IMSI、ICCID、手机号、账号、文件路径里的用户名
 - 只贴与本问题相关的行，不要上传整份 logcat

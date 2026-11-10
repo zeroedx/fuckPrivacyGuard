@@ -21,17 +21,17 @@ echo "[1/2] javac (module under test + stubs + tests)"
     tests/stub/android/util/Log.java \
     tests/stub/android/app/PendingIntent.java \
     tests/stub/dalvik/system/DexFile.java \
-    src/io/github/vivibibi30/hyperpguard/Logs.java \
-    src/io/github/vivibibi30/hyperpguard/Hooks.java \
-    tests/src/io/github/vivibibi30/hyperpguard/HooksNoteHitTest.java \
-    tests/src/io/github/vivibibi30/hyperpguard/HooksNoteHitConcurrencyTest.java \
-    tests/src/io/github/vivibibi30/hyperpguard/HooksSmsSignatureTest.java
+    src/io/github/zeroedx/fuckprivacyguard/Logs.java \
+    src/io/github/zeroedx/fuckprivacyguard/Hooks.java \
+    tests/src/io/github/zeroedx/fuckprivacyguard/HooksNoteHitTest.java \
+    tests/src/io/github/zeroedx/fuckprivacyguard/HooksNoteHitConcurrencyTest.java \
+    tests/src/io/github/zeroedx/fuckprivacyguard/HooksSmsSignatureTest.java
 
 echo "[2/2] run"
 rc=0
-"$JAVA" -cp "$OUT:libs/libxposed-api.jar" io.github.vivibibi30.hyperpguard.HooksNoteHitTest || rc=1
-"$JAVA" -cp "$OUT:libs/libxposed-api.jar" io.github.vivibibi30.hyperpguard.HooksNoteHitConcurrencyTest || rc=1
-"$JAVA" -cp "$OUT:libs/libxposed-api.jar" io.github.vivibibi30.hyperpguard.HooksSmsSignatureTest || rc=1
+"$JAVA" -cp "$OUT:libs/libxposed-api.jar" io.github.zeroedx.fuckprivacyguard.HooksNoteHitTest || rc=1
+"$JAVA" -cp "$OUT:libs/libxposed-api.jar" io.github.zeroedx.fuckprivacyguard.HooksNoteHitConcurrencyTest || rc=1
+"$JAVA" -cp "$OUT:libs/libxposed-api.jar" io.github.zeroedx.fuckprivacyguard.HooksSmsSignatureTest || rc=1
 [ "$rc" -eq 0 ] || exit 1
 
 echo "OK -> tests passed"

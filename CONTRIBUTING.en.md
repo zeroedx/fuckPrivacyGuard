@@ -4,7 +4,7 @@
 
 ## Before opening an issue
 
-- Search [existing issues](https://github.com/vivibibi30/hyperpguard/issues?q=is%3Aissue) first; add details to the original thread instead of opening a duplicate
+- Search [existing issues](https://github.com/zeroedx/fuckPrivacyGuard/issues?q=is%3Aissue) first; add details to the original thread instead of opening a duplicate
 - Run "self-check" in the app first; it shows the master switch, the scope and which processes were injected
 - Redact your logs: IMEI, IMSI, ICCID, phone number, account names, usernames inside file paths
 - Paste only the lines related to the problem, not a whole logcat

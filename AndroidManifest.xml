@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="io.github.vivibibi30.hyperpguard"
+    package="io.github.zeroedx.fuckprivacyguard"
     android:versionCode="70"
     android:versionName="2.0.0">
 
@@ -19,7 +19,7 @@
 
         <provider
             android:name="io.github.libxposed.service.XposedProvider"
-            android:authorities="io.github.vivibibi30.hyperpguard.XposedService"
+            android:authorities="io.github.zeroedx.fuckprivacyguard.XposedService"
             android:exported="true" />
 
         <!-- 桌面入口只在 alias 上，隐藏图标即禁用它；本 Activity 保留 LSPosed 模块页入口 -->

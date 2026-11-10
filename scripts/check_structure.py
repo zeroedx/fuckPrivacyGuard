@@ -10,7 +10,7 @@ notes = []
 def read(p):
     return (root / p).read_text(encoding='utf-8')
 
-cfg = read('src/io/github/vivibibi30/hyperpguard/Config.java')
+cfg = read('src/io/github/zeroedx/fuckprivacyguard/Config.java')
 manifest = read('AndroidManifest.xml')
 scope = read('META-INF/xposed/scope.list')
 

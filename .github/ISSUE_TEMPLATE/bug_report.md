@@ -7,9 +7,9 @@ assignees: ''
 ---
 
 > [!IMPORTANT]
-> 提交前请先搜索[已有 issue](https://github.com/vivibibi30/hyperpguard/issues?q=is%3Aissue) 是否已经报告过同一问题。同一个问题重复开单，排查要花两遍精力。
+> 提交前请先搜索[已有 issue](https://github.com/zeroedx/fuckPrivacyGuard/issues?q=is%3Aissue) 是否已经报告过同一问题。同一个问题重复开单，排查要花两遍精力。
 >
-> Search [existing issues](https://github.com/vivibibi30/hyperpguard/issues?q=is%3Aissue) before filing. Duplicates cost the same effort twice.
+> Search [existing issues](https://github.com/zeroedx/fuckPrivacyGuard/issues?q=is%3Aissue) before filing. Duplicates cost the same effort twice.
 
 ## 环境 · Environment
 

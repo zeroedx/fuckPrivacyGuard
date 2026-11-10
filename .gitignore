@@ -8,9 +8,20 @@ build/
 # 签名与本地环境
 *.jks
 *.keystore
-!debug.keystore
+# 正式签名材料一律不入库（含证书、密码、指纹配置），由仓库外配置提供
+*.p12
+*.pfx
+signing.env
+*.pass
+ks.pass
+*.key
+*.pem
 android-stub.jar
 .KEEP.txt
+
+# Agent / 工具工作目录，禁止入库
+.openhands/
+.agent_tmp/
 
 # IDE / 系统
 .idea/

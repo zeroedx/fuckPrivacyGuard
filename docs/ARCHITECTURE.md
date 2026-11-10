@@ -20,7 +20,7 @@
 
 ```
 HookEntry.java     入口；onPackageReady 后按包名分发到各层
-Config.java        开关常量、配置通道（Settings.Global 的 hyperpguard_conf）
+Config.java        开关常量、配置通道（Settings.Global 的 fuckprivacyguard_conf）
 I18n.java          界面英文查表（中文是唯一来源，查不到原样返回）
 NetGuard.java      网络层与规则匹配
 PrivacyApis.java   隐私 API 层

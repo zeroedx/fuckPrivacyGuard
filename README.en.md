@@ -13,6 +13,16 @@ This project is based on static analysis and runtime observation of the componen
 
 > **Maintenance**: this is a personal project. Development and testing rely on AI assistance and self-funded device testing, so the cost is borne by the author alone. Releases happen only for defects that affect use, newly discovered reporting channels, or adaptation to a new major system version. UI and wording changes are folded into the next substantive release instead of shipping on their own. Issues are read, but no response time or delivery schedule is promised.
 
+## Independent app and package
+
+As of 2.0.0 this is a fully **independent** app and LSPosed module; it no longer shares the upstream HyperPGuard package name or signature:
+
+- applicationId / Java package: `io.github.zeroedx.fuckprivacyguard`
+- App name: `fuckPrivacyGuard`
+- Signature: an independent release certificate (not upstream's `debug.keystore`)
+
+So it **cannot be installed over** upstream HyperPGuard, and upstream's APK cannot be installed over this one: they are treated as different apps. Migrating from upstream requires **uninstalling it first**; uninstalling wipes the old scope configuration, and LSPosed scope is **not migrated automatically** — re-tick the target components under LSPosed → Modules → fuckPrivacyGuard → Scope. A different signature also means future updates of this project can only be installed over builds signed by the same new key.
+
 ## Requirements
 
 - Android 10 – 16 on HyperOS / MIUI, LSPosed 2.2.x (libxposed API 100+)
@@ -117,10 +127,23 @@ export ZIPALIGN=/path/to/zipalign APKSIGNER=/path/to/apksigner
 sh build.sh
 ```
 
+Signing material is **never committed**; it is read from outside the repo — environment variables first, then `~/.config/fuckprivacyguard/signing.env` (override the path with `SIGNING_ENV`). If a required value is missing the build fails; it never falls back to a bundled or upstream key.
+
+```sh
+# ~/.config/fuckprivacyguard/signing.env
+KEYSTORE=/path/to/release.jks   # independent release key
+KEY_ALIAS=fuckprivacyguard
+STORE_PASS=...
+KEY_PASS=...                    # defaults to STORE_PASS
+EXPECT_SHA256=<64-hex cert fingerprint>  # guard against the wrong key
+```
+
+`EXPECT_SHA256` is checked before signing: if the keystore's real fingerprint does not match, the build aborts. CI injects the same values from repository Secrets.
+
 ## Source layout
 
 ```
-src/io/github/vivibibi30/hyperpguard/
+src/io/github/zeroedx/fuckprivacyguard/
 ├── HookEntry.java       entry point, dispatch per package
 ├── Config.java          switches and config channel
 ├── I18n.java            UI strings (Chinese source, English lookup)
@@ -139,7 +162,7 @@ src/io/github/vivibibi30/hyperpguard/
 ## Limitations
 
 - Domain lists can be incomplete: addresses can be delivered from server config
-- Switches left at their default value are not written into `hyperpguard_conf`; a missing key does not mean the switch is off
+- Switches left at their default value are not written into `fuckprivacyguard_conf`; a missing key does not mean the switch is off
 - Obfuscated class names change between versions; `hook miss` in the log is expected and does not affect the network layer
 - Requests made through native stacks (Cronet and friends) are not covered by Java-level hooks
 - `IMrm` is a HAL-level service; only the `ServiceManager` side is disconnected

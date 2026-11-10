@@ -1,4 +1,4 @@
-package io.github.vivibibi30.hyperpguard;
+package io.github.zeroedx.fuckprivacyguard;
 
 /**
  * 功能目录：分组与子项的唯一来源。
@@ -15,7 +15,7 @@ final class Catalog {
     static final String URL_ISSUES = URL_REPO + "/issues";
     static final String URL_RELEASES = URL_REPO + "/releases";
     static final String URL_MODULE =
-            "https://modules.lsposed.org/module/io.github.vivibibi30.hyperpguard";
+            "https://modules.lsposed.org/module/io.github.zeroedx.fuckprivacyguard";
     static final String API_LATEST =
             "https://api.github.com/repos/zeroedx/fuckPrivacyGuard/releases/latest";
 
