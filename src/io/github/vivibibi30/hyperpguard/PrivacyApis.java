@@ -37,17 +37,33 @@ final class PrivacyApis {
     void install(ClassLoader cl, String pkg, boolean appList, boolean usage,
                  boolean ids, boolean sms, boolean xmsf) {
         if (appList) {
-            Hooks.ret(m, cl, "android.app.ApplicationPackageManager",
-                    "getInstalledPackages", new Class<?>[]{int.class}, new ArrayList<Object>());
-            Hooks.ret(m, cl, "android.app.ApplicationPackageManager",
-                    "getInstalledApplications", new Class<?>[]{int.class}, new ArrayList<Object>());
+            // 应用清单查询：Android 13+ 的 flags 重载与旧的 int 重载都转发到同一条链路
+            // （AOSP ApplicationPackageManager#getInstalledPackages/getInstalledApplications），
+            // 两个入口都要拦，否则调用方走 flags 重载就漏了。
+            // flags 类在 API 33 之前不存在，用反射取，取不到就只挂 int 重载，避免拖垮整段安装。
+            boolean a = Hooks.ret(m, cl, "android.app.ApplicationPackageManager",
+                    "getInstalledPackages", new Class<?>[]{int.class},
+                    new ArrayList<Object>(), "applist packages(int)");
+            boolean c = Hooks.ret(m, cl, "android.app.ApplicationPackageManager",
+                    "getInstalledApplications", new Class<?>[]{int.class},
+                    new ArrayList<Object>(), "applist applications(int)");
+            Class<?> pif = findClass(cl, "android.content.pm.PackageManager$PackageInfoFlags");
+            Class<?> aif = findClass(cl, "android.content.pm.PackageManager$ApplicationInfoFlags");
+            boolean b = pif != null && Hooks.ret(m, cl, "android.app.ApplicationPackageManager",
+                    "getInstalledPackages", new Class<?>[]{pif},
+                    new ArrayList<Object>(), "applist packages(flags)");
+            boolean d = aif != null && Hooks.ret(m, cl, "android.app.ApplicationPackageManager",
+                    "getInstalledApplications", new Class<?>[]{aif},
+                    new ArrayList<Object>(), "applist applications(flags)");
+            Logs.i("applist install int=" + (a && c) + " flags=" + (b && d));
         }
         if (usage) {
             Hooks.ret(m, cl, "android.app.usage.UsageStatsManager",
-                    "queryEvents", new Class<?>[]{long.class, long.class}, null);
+                    "queryEvents", new Class<?>[]{long.class, long.class}, null,
+                    "usage queryEvents");
             Hooks.ret(m, cl, "android.app.usage.UsageStatsManager",
                     "queryUsageStats", new Class<?>[]{int.class, long.class, long.class},
-                    new ArrayList<Object>());
+                    new ArrayList<Object>(), "usage queryUsageStats");
         }
         if (ids) {
             // IMEI / MEID / DeviceId 返回 null；IMSI / ICCID 保留运营商字段
@@ -93,17 +109,27 @@ final class PrivacyApis {
         if (sms) {
             Hooks.ret(m, cl, "android.telephony.SmsManager", "sendTextMessage",
                     new Class<?>[]{String.class, String.class, String.class, String.class,
-                            android.app.PendingIntent.class}, null);
+                            android.app.PendingIntent.class}, null, "sms sendTextMessage");
             Hooks.ret(m, cl, "android.telephony.SmsManager", "sendMultipartTextMessage",
                     new Class<?>[]{String.class, String.class, java.util.List.class,
-                            java.util.List.class, java.util.List.class}, null);
+                            java.util.List.class, java.util.List.class}, null,
+                    "sms sendMultipartTextMessage");
             Hooks.ret(m, cl, "android.telephony.SmsManager", "sendDataMessage",
                     new Class<?>[]{String.class, String.class, short.class, byte[].class,
-                            android.app.PendingIntent.class}, null);
+                            android.app.PendingIntent.class}, null, "sms sendDataMessage");
         }
         if (xmsf) {
             hookXmsfBroadcast(cl, "android.content.ContextWrapper");
             hookXmsfBroadcast(cl, "android.content.ContextImpl");
+        }
+    }
+
+    /** 反射取类，取不到返回 null（不触发 NoClassDefFoundError，也不打印堆栈） */
+    private static Class<?> findClass(ClassLoader cl, String name) {
+        try {
+            return Class.forName(name, false, cl);
+        } catch (Throwable t) {
+            return null;
         }
     }
 
@@ -118,7 +144,10 @@ final class PrivacyApis {
                 if (p.length != 2 || p[1] != String.class) continue;
                 m.hook(method).intercept(chain -> {
                     Object key = chain.getArg(1);
-                    if ("android_id".equals(key)) return null;
+                    if ("android_id".equals(key)) {
+                        Hooks.noteHit("android_id");
+                        return null;
+                    }
                     return chain.proceed();
                 });
                 n++;
@@ -141,6 +170,7 @@ final class PrivacyApis {
                         && !name.equals("getCurrentLocation")) continue;
                 try {
                     m.hook(method).intercept(chain -> {
+                        Hooks.noteHit("location");
                         Class<?> rt = ((java.lang.reflect.Method) chain.getExecutable()).getReturnType();
                         return rt == void.class || rt == boolean.class ? null : null;
                     });
@@ -164,6 +194,7 @@ final class PrivacyApis {
                 if (!name.equals("getCellLocation") && !name.equals("getAllCellInfo")
                         && !name.equals("getNeighboringCellInfo")) continue;
                 m.hook(method).intercept(chain -> {
+                    Hooks.noteHit("cell");
                     Class<?> rt = ((java.lang.reflect.Method) chain.getExecutable()).getReturnType();
                     return java.util.List.class.isAssignableFrom(rt)
                             ? new java.util.ArrayList<>() : null;
@@ -273,7 +304,10 @@ final class PrivacyApis {
             int n = 0;
             for (Method method : wm.getDeclaredMethods()) {
                 if (!method.getName().equals("getScanResults")) continue;
-                m.hook(method).intercept(chain -> new java.util.ArrayList<>());
+                m.hook(method).intercept(chain -> {
+                    Hooks.noteHit("wifi scan");
+                    return new java.util.ArrayList<>();
+                });
                 n++;
             }
             // WifiInfo 的 SSID / BSSID
@@ -281,7 +315,10 @@ final class PrivacyApis {
             for (Method method : wi.getDeclaredMethods()) {
                 String name = method.getName();
                 if (!name.equals("getSSID") && !name.equals("getBSSID")) continue;
-                m.hook(method).intercept(chain -> name.equals("getSSID") ? "<unknown ssid>" : "02:00:00:00:00:00");
+                m.hook(method).intercept(chain -> {
+                    Hooks.noteHit("wifi info");
+                    return name.equals("getSSID") ? "<unknown ssid>" : "02:00:00:00:00:00";
+                });
                 n++;
             }
             Logs.i("wifi hooked=" + n);
@@ -306,6 +343,7 @@ final class PrivacyApis {
                             || s.startsWith("content://sms")
                             || s.startsWith("content://mms")
                             || s.startsWith("content://com.android.contacts")) {
+                        Hooks.noteHit("resolver block");
                         return null;
                     }
                     return chain.proceed();

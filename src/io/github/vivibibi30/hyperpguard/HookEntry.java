@@ -161,7 +161,10 @@ public class HookEntry extends XposedModule {
                             && p[1] == byte[].class && p[2] == byte[].class
                             && m.getReturnType() == boolean.class;
                 },
-                chain -> Boolean.FALSE);
+                chain -> {
+                    Hooks.noteHit("systemhelper upload");
+                    return Boolean.FALSE;
+                });
         Logs.i("systemhelper upload fallback=" + n + " scan=" + cands.size()
                 + (n > 0 ? "" : " probe=" + probe(cl, cands)));
         return n > 0;
@@ -174,7 +177,10 @@ public class HookEntry extends XposedModule {
                 m -> m.getName().equals("a") && m.getParameterCount() == 1
                         && m.getParameterTypes()[0] == String.class
                         && m.getReturnType() == void.class,
-                chain -> null);
+                chain -> {
+                    Hooks.noteHit("systemhelper write");
+                    return null;
+                });
         Logs.i("systemhelper write fallback=" + n + " scan=" + cands.size()
                 + (n > 0 ? "" : " probe=" + probe(cl, cands)));
         return n > 0;
@@ -288,8 +294,10 @@ public class HookEntry extends XposedModule {
             Logs.i("attach systemhelper");
             privacySafe(cl, pkg, false, false, true, false, false);
             boolean upload = Hooks.ret(this, cl, "c.d.a.b.f", "a",
-                    new Class<?>[]{String.class, byte[].class, byte[].class}, Boolean.FALSE);
-            boolean write = Hooks.ret(this, cl, "c.d.a.b.e", "a", new Class<?>[]{String.class}, null);
+                    new Class<?>[]{String.class, byte[].class, byte[].class}, Boolean.FALSE,
+                    "systemhelper upload");
+            boolean write = Hooks.ret(this, cl, "c.d.a.b.e", "a", new Class<?>[]{String.class},
+                    null, "systemhelper write");
             if (!upload) upload = systemHelperUpload(cl);
             if (!write) write = systemHelperWrite(cl);
             Logs.i("systemhelper direct upload=" + upload + " write=" + write);

@@ -23,13 +23,35 @@ final class Hooks {
     private static final java.util.Set<String> CUSTOM_HITS =
             java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<String, Boolean>());
 
+    /** 首次命中集合：把「hook 装上」与「真的被调用」分开，命中只记一次 */
+    private static final java.util.Set<String> HITS =
+            java.util.Collections.newSetFromMap(
+                    new java.util.concurrent.ConcurrentHashMap<String, Boolean>());
+
+    /** 首次命中时记一条 `<tag> hit`，之后静默；用于诊断且不刷屏 */
+    static void noteHit(String tag) {
+        if (HITS.add(tag)) Logs.i(tag + " hit");
+    }
+
     /** 把方法整体替换为固定返回值。返回是否挂上。 */
     static boolean ret(XposedModule m, ClassLoader cl, String cls, String name,
                        Class<?>[] types, Object value) {
+        return ret(m, cl, cls, name, types, value, null);
+    }
+
+    /**
+     * 同上，并在首次命中时记一条 `<hitTag> hit`。
+     * 「hook ok」表示安装成功，「hit」表示真的被调用，两者分开记，命中只记一次。
+     */
+    static boolean ret(XposedModule m, ClassLoader cl, String cls, String name,
+                       Class<?>[] types, Object value, String hitTag) {
         try {
             Class<?> c = Class.forName(cls, false, cl);
             Method method = c.getDeclaredMethod(name, types);
-            m.hook(method).intercept(chain -> value);
+            m.hook(method).intercept(chain -> {
+                if (hitTag != null) noteHit(hitTag);
+                return value;
+            });
             Logs.i("hook ok " + cls + "#" + name);
             return true;
         } catch (Throwable t) {

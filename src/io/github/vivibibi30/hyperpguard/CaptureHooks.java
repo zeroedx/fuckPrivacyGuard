@@ -32,7 +32,7 @@ final class CaptureHooks {
             m.hook(exec).intercept(chain -> {
                 Object a0 = chain.getArg(0);
                 if (a0 instanceof String && mentionsTable(((String) a0).toLowerCase())) {
-                    Logs.i("block db execSQL");
+                    Hooks.noteHit("db execSQL");
                     return null;
                 }
                 return chain.proceed();
@@ -58,7 +58,7 @@ final class CaptureHooks {
                 m.hook(method).intercept(chain -> {
                     Object a0 = chain.getArg(0);
                     if (a0 instanceof String && TABLES.contains((String) a0)) {
-                        Logs.i("block db write " + name + " " + a0);
+                        Hooks.noteHit("db write " + a0);
                         return fallback;
                     }
                     return chain.proceed();
@@ -84,7 +84,7 @@ final class CaptureHooks {
             for (Method method : mp.getDeclaredMethods()) {
                 if (!method.getName().equals("createVirtualDisplay")) continue;
                 m.hook(method).intercept(chain -> {
-                    Logs.i("block createVirtualDisplay");
+                    Hooks.noteHit("screenguard");
                     return null;
                 });
                 n++;

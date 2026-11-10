@@ -30,6 +30,10 @@
 - LSPosed 2.2.x（libxposed API 100+）
 - Root：KernelSU / Magisk / APatch（「重启」「查看日志」需要）
 
+> Android 17 / SDK 37 / HyperOS 4 **尚未完成专项适配与真机验证**。当前支持范围、已覆盖能力、
+> 以及尚未覆盖（Native / HAL、Binder / AIDL、麦克风、摄像头、蓝牙）或尚未验证的能力，
+> 见 [兼容性与覆盖范围](docs/COMPATIBILITY.md)。
+
 ## 安装
 
 1. 安装 `HyperPGuard`
@@ -161,6 +165,7 @@ build.sh              一键构建
 
 ## 适配边界
 
+- 完整的已覆盖 / 未覆盖 / 待验证清单见 [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)
 - 开关保持默认值时不会写进 `hyperpguard_conf`，`settings get` 里缺某个 key 不代表它关闭，以界面状态与日志为准
 - 域名名单可能漏项：地址可由配置下发；小米统计为整进程断网，SystemHelper 默认只拦上报域名，其余组件依赖隐私 API 层与方法层
 - 方法层类名随组件版本变化，日志里 `hook miss` 属正常，网络层与隐私 API 层不受影响
