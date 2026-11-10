@@ -9,6 +9,8 @@
 ```sh
 sh build.sh                 # 完整构建，产物 HyperPGuard.apk
 sh scripts/check_structure.sh   # 静态一致性自查，几秒钟
+sh scripts/check_hooks.sh       # Hook 注册与默认开关自查；设 ANDROID_JAR 后校验平台签名
+sh tests/run.sh                 # 纯 JVM 单元测试（noteHit 去重），不需要设备或 SDK
 ```
 
 构建只需要 JDK 与 `javac --release 11`、`d8`、`aapt2`、`zipalign`、`apksigner`，没有 Gradle。CI 走的是同一个脚本。

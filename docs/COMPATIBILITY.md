@@ -23,9 +23,10 @@
 
 **Android 17 / SDK 37 尚未完成专项适配，也未在真机上验证。** 本仓库当前：
 
-- 没有任何 Android 17 相关代码、注释、测试或构建产物；
 - 编译使用 android-35 的平台 jar，`targetSdkVersion` 为 34；
-- 声明支持范围止于 Android 16（见上表）。
+- 声明支持范围止于 Android 16（见上表）；
+- 已用 **真实的 android-37.0 平台 jar** 静态核对了被 hook 的公开方法签名（见下节），
+  但这只是「签名存在性」的源码级证据，**不是真机行为验证**。
 
 因此，**在 Android 17 / HyperOS 4 上的实际拦截效果未知**，下列事项都需要在目标机型上核对后才能下结论：
 
@@ -36,6 +37,24 @@
 - LSPosed 在 Android 17 上对 libxposed API 102 的支持情况。
 
 **本模块不宣称已经完整兼容 Android 17。**
+
+### 应用清单 Hook 的跨版本签名核对（源码确认）
+
+对 `ApplicationPackageManager#getInstalledPackages` / `getInstalledApplications` 的四组重载，
+用 Google 官方平台包静态核对（`sh scripts/check_hooks.sh`，`ANDROID_JAR` 指向对应平台）：
+
+| API | `(int)` 重载 | flags 重载（`PackageInfoFlags` / `ApplicationInfoFlags`） |
+|---|---|---|
+| 29（Android 10） | 存在 | 不存在 |
+| 32（Android 12L） | 存在 | 不存在 |
+| 33（Android 13） | 存在 | 存在 |
+| 35（Android 15） | 存在 | 存在 |
+| 36（Android 16） | 存在 | 存在 |
+| 37（Android 17） | 存在 | 存在 |
+
+结论：**flags 重载自 API 33 起存在**；代码用字符串反射取该类，旧系统（< 33）取不到时
+只挂 `(int)` 重载，不会触发 `NoClassDefFoundError`（`javap` 已确认编译产物里 flags 类型
+只作为字符串常量出现，没有 `.class` 字面量）。
 
 ## 三、已覆盖的拦截能力（源码确认）
 
@@ -87,12 +106,22 @@
 |---|---|
 | `attach <包名>` | 模块注入该进程成功 |
 | `hook ok` / `hook miss` | 某个方法 hook **安装**成功 / 类名或签名不匹配 |
-| `<tag> hit` | 某个 hook **实际被调用**（首次命中记一条，之后静默） |
+| `类#方法(参数) hit` | 某个 hook **实际被调用**（首次命中记一条，之后静默）；键含类名、方法名与参数签名，只记方法身份，不记实参内容 |
 | `X(host)` / `X(host+path)` | 域名规则命中（路径规则带 `+path`） |
 | `X(strict)` | 整进程断网生效 |
 | `? <tag> <host>` | 「记录未拦截访问」记录：访问未被拦截 |
 
-`hook ok` 只表示 hook 已安装，**不代表该进程实际走到了该调用点**；是否命中看 `<tag> hit`。
+`hook ok` 只表示 hook 已安装，**不代表该进程实际走到了该调用点**；是否命中看 `hit` 行。
+`hit` 行按「类名#方法名(参数类型)」去重（可选带语义标签前缀，如 `applist`、`db write`），
+同一方法的不同重载各记一条，高频调用不会刷屏。
+
+### 可重复执行的自查（源码确认）
+
+- `sh tests/run.sh`：纯 JVM 单元测试，覆盖 `noteHit` 的首次命中去重、去重键含类名/方法名/
+  参数签名、不记录实参内容；不需要设备或 SDK。
+- `sh scripts/check_hooks.sh`：静态核对 Hook 注册与默认开关；设置 `ANDROID_JAR` 后
+  额外用 `javap` 校验签名在目标平台 jar 里真实存在。
+
 
 ## 四、尚未覆盖或尚未验证的能力
 

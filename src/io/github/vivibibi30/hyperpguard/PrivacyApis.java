@@ -145,7 +145,7 @@ final class PrivacyApis {
                 m.hook(method).intercept(chain -> {
                     Object key = chain.getArg(1);
                     if ("android_id".equals(key)) {
-                        Hooks.noteHit("android_id");
+                        Hooks.noteHit(chain);
                         return null;
                     }
                     return chain.proceed();
@@ -170,7 +170,7 @@ final class PrivacyApis {
                         && !name.equals("getCurrentLocation")) continue;
                 try {
                     m.hook(method).intercept(chain -> {
-                        Hooks.noteHit("location");
+                        Hooks.noteHit(chain);
                         Class<?> rt = ((java.lang.reflect.Method) chain.getExecutable()).getReturnType();
                         return rt == void.class || rt == boolean.class ? null : null;
                     });
@@ -194,7 +194,7 @@ final class PrivacyApis {
                 if (!name.equals("getCellLocation") && !name.equals("getAllCellInfo")
                         && !name.equals("getNeighboringCellInfo")) continue;
                 m.hook(method).intercept(chain -> {
-                    Hooks.noteHit("cell");
+                    Hooks.noteHit(chain);
                     Class<?> rt = ((java.lang.reflect.Method) chain.getExecutable()).getReturnType();
                     return java.util.List.class.isAssignableFrom(rt)
                             ? new java.util.ArrayList<>() : null;
@@ -305,7 +305,7 @@ final class PrivacyApis {
             for (Method method : wm.getDeclaredMethods()) {
                 if (!method.getName().equals("getScanResults")) continue;
                 m.hook(method).intercept(chain -> {
-                    Hooks.noteHit("wifi scan");
+                    Hooks.noteHit(chain);
                     return new java.util.ArrayList<>();
                 });
                 n++;
@@ -316,7 +316,7 @@ final class PrivacyApis {
                 String name = method.getName();
                 if (!name.equals("getSSID") && !name.equals("getBSSID")) continue;
                 m.hook(method).intercept(chain -> {
-                    Hooks.noteHit("wifi info");
+                    Hooks.noteHit(chain);
                     return name.equals("getSSID") ? "<unknown ssid>" : "02:00:00:00:00:00";
                 });
                 n++;
@@ -343,7 +343,7 @@ final class PrivacyApis {
                             || s.startsWith("content://sms")
                             || s.startsWith("content://mms")
                             || s.startsWith("content://com.android.contacts")) {
-                        Hooks.noteHit("resolver block");
+                        Hooks.noteHit(chain);
                         return null;
                     }
                     return chain.proceed();

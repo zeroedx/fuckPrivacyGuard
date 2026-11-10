@@ -25,6 +25,10 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      # 纯 JVM，不需要设备或 SDK：覆盖 noteHit 首次命中去重与日志格式
+      - name: Offline hook tests
+        run: sh tests/run.sh
+
       # 需要 build-tools 35+：34 的 d8（R8 8.2）解析 libxposed 里的 Java 17 class 会 NPE
       - name: Prepare Android build-tools
         run: |
@@ -69,6 +73,10 @@ jobs:
           fi
           echo "ANDROID_JAR=$AJ" >> "$GITHUB_ENV"
           echo "android.jar: $AJ"
+
+      # 用刚准备好的 android.jar 校验 applist 四组重载签名在平台里真实存在
+      - name: Hook signature check
+        run: sh scripts/check_hooks.sh
 
       - name: Build
         run: sh build.sh

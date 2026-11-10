@@ -162,7 +162,7 @@ public class HookEntry extends XposedModule {
                             && m.getReturnType() == boolean.class;
                 },
                 chain -> {
-                    Hooks.noteHit("systemhelper upload");
+                    Hooks.noteHit(chain);
                     return Boolean.FALSE;
                 });
         Logs.i("systemhelper upload fallback=" + n + " scan=" + cands.size()
@@ -178,7 +178,7 @@ public class HookEntry extends XposedModule {
                         && m.getParameterTypes()[0] == String.class
                         && m.getReturnType() == void.class,
                 chain -> {
-                    Hooks.noteHit("systemhelper write");
+                    Hooks.noteHit(chain);
                     return null;
                 });
         Logs.i("systemhelper write fallback=" + n + " scan=" + cands.size()

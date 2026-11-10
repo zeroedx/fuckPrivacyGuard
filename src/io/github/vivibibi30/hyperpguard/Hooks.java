@@ -23,14 +23,52 @@ final class Hooks {
     private static final java.util.Set<String> CUSTOM_HITS =
             java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<String, Boolean>());
 
-    /** 首次命中集合：把「hook 装上」与「真的被调用」分开，命中只记一次 */
+    /**
+     * 首次命中集合：把「hook 装上」与「真的被调用」分开。
+     * 去重键 = 语义标签 + 声明类 + 方法名 + 参数类型，所以同一方法的不同重载各记一条，
+     * 同名不同类也各记一条；每个键只记首次，避免高频调用刷屏。
+     */
     private static final java.util.Set<String> HITS =
             java.util.Collections.newSetFromMap(
                     new java.util.concurrent.ConcurrentHashMap<String, Boolean>());
 
-    /** 首次命中时记一条 `<tag> hit`，之后静默；用于诊断且不刷屏 */
-    static void noteHit(String tag) {
-        if (HITS.add(tag)) Logs.i(tag + " hit");
+    /** 首次命中记一条日志；只记方法身份，不记任何实参内容 */
+    static void noteHit(XposedInterface.Chain chain) {
+        noteHit(chain, null);
+    }
+
+    /**
+     * 同上，附带一个语义标签（如 applist / db write）。标签只用于人读；
+     * 去重键包含标签本身，同一方法被两种用途 hook 时不会互相吞掉。
+     */
+    static void noteHit(XposedInterface.Chain chain, String label) {
+        java.lang.reflect.Executable ex = executable(chain);
+        if (ex == null) return;
+        String id = identity(ex);
+        String key = label == null ? id : label + ' ' + id;
+        if (!HITS.add(key)) return;
+        Logs.i(key + " hit");
+    }
+
+    /** 取被 hook 的方法/构造器；拿不到就放弃本次记录，不影响业务 */
+    private static java.lang.reflect.Executable executable(XposedInterface.Chain chain) {
+        try {
+            return chain.getExecutable();
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /** 类名#方法名(参数类型)；不含实参值，不含返回值 */
+    private static String identity(java.lang.reflect.Executable ex) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(ex.getDeclaringClass().getName()).append('#').append(ex.getName()).append('(');
+        Class<?>[] ps = ex.getParameterTypes();
+        for (int i = 0; i < ps.length; i++) {
+            if (i > 0) sb.append(',');
+            sb.append(ps[i].getName());
+        }
+        return sb.append(')').toString();
     }
 
     /** 把方法整体替换为固定返回值。返回是否挂上。 */
@@ -40,7 +78,7 @@ final class Hooks {
     }
 
     /**
-     * 同上，并在首次命中时记一条 `<hitTag> hit`。
+     * 同上，并在首次命中时记一条日志（键含类名、方法名与参数签名）。
      * 「hook ok」表示安装成功，「hit」表示真的被调用，两者分开记，命中只记一次。
      */
     static boolean ret(XposedModule m, ClassLoader cl, String cls, String name,
@@ -49,7 +87,7 @@ final class Hooks {
             Class<?> c = Class.forName(cls, false, cl);
             Method method = c.getDeclaredMethod(name, types);
             m.hook(method).intercept(chain -> {
-                if (hitTag != null) noteHit(hitTag);
+                if (hitTag != null) noteHit(chain, hitTag);
                 return value;
             });
             Logs.i("hook ok " + cls + "#" + name);

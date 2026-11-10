@@ -26,3 +26,6 @@ README-TMP.txt
 *.db
 *.db-wal
 *.db-shm
+
+# 测试产物
+tests/out/
