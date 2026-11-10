@@ -304,6 +304,8 @@ public class HookEntry extends XposedModule {
             if (!upload) upload = systemHelperUpload(cl);
             if (!write) write = systemHelperWrite(cl);
             Logs.i("systemhelper direct upload=" + upload + " write=" + write);
+            // 采集与许可环节：许可判断 / 应用使用统计线程 / 采集类广播接收器
+            stage("shHooks", () -> new SystemHelperHooks(this).install(cl));
             List<NetGuard.Rule> r = new ArrayList<>();
             if (Config.on(Config.K_SYSHELPER, true)) r.add(new NetGuard.Rule("dm.wo.com.cn"));
             netSafe(cl, "systemhelper", r, Config.on(Config.K_SYSHELPER_ALLNET, false));
@@ -324,6 +326,9 @@ public class HookEntry extends XposedModule {
             privacySafe(cl, pkg, true, false, true, false, false);
             if (Config.on(Config.K_GP_SCREENGUARD, true)) {
                 stage("screenCapture", () -> CaptureHooks.screenCapture(this, cl));
+            }
+            if (Config.on(Config.K_GP_AIGUARD, true)) {
+                stage("aiguard", () -> new GuardHooks(this).install(cl));
             }
             netSafe(cl, "guardprovider", r, false);
             return;

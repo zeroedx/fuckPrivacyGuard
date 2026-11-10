@@ -46,7 +46,9 @@ def main():
     xsof = read("XsofHooks.java")
     msa = read("MsaHooks.java")
     analytics = read("AnalyticsHooks.java")
-    all_src = hooks + priv + capture + entry + cfg + xsof + msa + analytics
+    sh = read("SystemHelperHooks.java")
+    guard = read("GuardHooks.java")
+    all_src = hooks + priv + capture + entry + cfg + xsof + msa + analytics + sh + guard
 
     # ---- A. noteHit 去重键含类名/方法名/参数签名 ----
     check("noteHit 基于 Chain（含类名/方法名/参数签名）",
@@ -157,6 +159,79 @@ def main():
           re.search(r'intercept\(chain -> \{\s*Hooks\.noteHit\(chain, "xsof db write"\);'
                     r'\s*return null;\s*\}\)', xsof) is not None)
 
+    # ---- K. 2.1.0 P0：定位契约 / Android ID / SystemHelper / guardprovider ----
+    check("loc: getCurrentLocation 走回调而不是直接返回 null",
+          "deliverEmptyCurrentLocation" in priv
+          and "deliverEmptyCurrentLocation" in hooks)
+    check("loc: 回调投递要求同时具备 Executor 与 Consumer",
+          "java.util.concurrent.Executor" in hooks
+          and "java.util.function.Consumer" in hooks)
+    check("loc: requestSingleUpdate 一并覆盖",
+          '"requestSingleUpdate"' in priv)
+    check("loc: 回调接收器为可测的 LocationSink",
+          "interface LocationSink" in hooks)
+    check("loc: 已取消的 CancellationSignal 不再回调",
+          "android.os.CancellationSignal" in hooks and "isCanceled(" in hooks)
+    # 投递失败必须放行原逻辑，否则调用方既拿不到回调、原逻辑也没执行，会一直等
+    check("loc: getCurrentLocation 投递失败时放行 chain.proceed()",
+          re.search(r'boolean delivered = Hooks\.deliverEmptyCurrentLocation\(.*?'
+                    r'if \(delivered\) \{.*?return null;\s*\}.*?return chain\.proceed\(\);',
+                    priv, re.S) is not None)
+
+    check("androidid: 返回稳定假值而不是 null",
+          "Hooks.androidIdStub()" in priv
+          and "androidIdStub()" in hooks)
+    # android_id 分支里不得再直接 return null（限定在同一分支的短窗口内匹配）
+    m = re.search(r'if \("android_id"\.equals\(key\)\) \{(.{0,300}?)\}',
+                  priv, re.S)
+    check("androidid: android_id 分支内不出现 return null",
+          m is not None and "return null" not in m.group(1)
+          and "androidIdStub()" in m.group(1))
+
+    check("sh: 许可判断按 public static (Context)->boolean 判定",
+          "isPolicyGate" in hooks and "Hooks.isPolicyGate" in sh)
+    check("sh: 许可判断全范围候选唯一，否则跳过",
+          "sh gate skip cands=" in sh and "cands.size() != 1" in sh)
+    check("sh: 统计线程按 Thread 子类 run() 判定",
+          "isUsageRun" in hooks and "Hooks.isUsageRun" in sh)
+    check("sh: 统计线程额外要求引用 android.app.usage.*（避免误伤其它线程）",
+          "referencesUsageTypes" in hooks
+          and 'startsWith("android.app.usage.")' in hooks)
+    check("sh: 统计线程全范围候选唯一，否则跳过",
+          "sh usage skip cands=" in sh and "cands.size() != 1" in sh)
+    check("sh: 接收器按 onReceive(Context,Intent) 判定",
+          "isReceiverOnReceive" in hooks and "Hooks.isReceiverOnReceive" in sh)
+    check("sh: 7 个接收器类名齐全",
+          all(('"' + n + '"') in sh for n in [
+              "AppInfoRegisterReceiver", "ScheduleRegisterReceiver", "GetSignalInfoReceiver",
+              "SignalInfoRegisterReceiver", "OnBootReceiver", "SIMStateReceiver",
+              "ConnectStateReceiver"]))
+    check("sh: 接收器 FQN 前缀为 control 包",
+          '"com.mobiletools.systemhelper.control." + simple' in sh)
+    check("sh: 每个接收器入口候选唯一，否则跳过",
+          "sh receiver skip " in sh and "cands.size() != 1" in sh)
+    check("sh: 扫描范围限定在组件自身与混淆包",
+          'startsWith("com.mobiletools.systemhelper")' in sh)
+    check("sh: 三个开关默认开启",
+          "Config.K_SH_POLICY, true" in sh and "Config.K_SH_USAGE, true" in sh
+          and "Config.K_SH_RECEIVER, true" in sh)
+    check("sh: 接入 dispatch",
+          "new SystemHelperHooks(this).install(cl)" in entry)
+
+    check("guard: 只 hook AiGuardService",
+          'com.miui.guardprovider.aiguard.AiGuardService' in guard)
+    check("guard: onStartCommand 返回 START_NOT_STICKY 并 stopSelf",
+          "START_NOT_STICKY" in guard and "stopSelf" in guard)
+    check("guard: 服务入口按签名判定",
+          "isServiceOnStartCommand" in hooks and "Hooks.isServiceOnStartCommand" in guard)
+    check("guard: 服务入口候选唯一，否则跳过",
+          "guard aiguard skip cands=" in guard and "found != 1" in guard)
+    check("guard: onStartCommand 判定含修饰符检查",
+          "Modifier.isPublic" in hooks and "Modifier.isStatic" in hooks)
+    check("guard: 开关默认开启并接入 dispatch",
+          "Config.K_GP_AIGUARD, true" in entry
+          and "new GuardHooks(this).install(cl)" in entry)
+
     # ---- J. 可选：签名在平台 jar 里真实存在 ----
     # 注意：这里校验的是公开基类 android.content.pm.PackageManager 的声明。
     # 它不在 SDK 平台包里（javap 会报 class not found），因此本项只能确认
@@ -224,6 +299,31 @@ def main():
             else:
                 check("平台 jar(%s): queryEvents(UsageEventsQuery) 应不存在（旧系统）" % api,
                       not has_q_query)
+
+            # LocationManager#getCurrentLocation 回调形态（2.1.0 P0-3）
+            lm = javap_out(javap, android_jar, "android.location.LocationManager")
+            if api >= 30:
+                check("平台 jar(%s): getCurrentLocation 带 Executor+Consumer 重载" % api,
+                      "getCurrentLocation(java.lang.String, android.location.LocationRequest, "
+                      "java.util.concurrent.Executor, java.util.function.Consumer" in lm
+                      or "getCurrentLocation(java.lang.String, "
+                      "android.os.CancellationSignal, java.util.concurrent.Executor, "
+                      "java.util.function.Consumer" in lm)
+                check("平台 jar(%s): getCurrentLocation 返回 void（不是 Location）" % api,
+                      "java.lang.Object getCurrentLocation" not in lm
+                      and "android.location.Location getCurrentLocation" not in lm)
+            else:
+                check("平台 jar(%s): getCurrentLocation 应不存在（<API 30）" % api,
+                      "getCurrentLocation" not in lm)
+            check("平台 jar(%s): getLastKnownLocation(String) 返回 Location" % api,
+                  "android.location.Location getLastKnownLocation(java.lang.String)" in lm)
+
+            # Service#onStartCommand 契约（2.1.0 P0-2）
+            svc = javap_out(javap, android_jar, "android.app.Service")
+            check("平台 jar(%s): Service.onStartCommand(Intent,int,int)->int" % api,
+                  "public int onStartCommand(android.content.Intent, int, int)" in svc)
+            check("平台 jar(%s): Service.START_NOT_STICKY 常量存在" % api,
+                  "START_NOT_STICKY" in svc)
 
     # ---- 输出 ----
     bad = 0

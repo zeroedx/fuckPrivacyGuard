@@ -157,7 +157,8 @@ final class PrivacyApis {
                     Object key = chain.getArg(1);
                     if ("android_id".equals(key)) {
                         Hooks.noteHit(chain);
-                        return null;
+                        // 返回稳定假值而不是 null：调用方常直接当 String 用，null 会 NPE。
+                        return Hooks.androidIdStub();
                     }
                     return chain.proceed();
                 });
@@ -169,29 +170,68 @@ final class PrivacyApis {
         }
     }
 
-    /** 定位：返回 null / 不注册监听 */
+    /**
+     * 定位：按方法形态分别处理，避免「一刀切返回 null」造成的契约错误。
+     *
+     * - getLastKnownLocation：返回 null（无已知位置），契约正确。
+     * - getCurrentLocation：void，通过调用方传入的 Executor 回调一个 null 位置。
+     *   直接返回 null 等于什么都没做——调用方永远等不到结果，会一直挂起/超时。
+     *   投递成功才吞掉原逻辑（返回 null）；投递失败（形参里没有 Executor/Consumer，
+     *   或已取消）时放行 chain.proceed()，绝不出现「既没回调、原逻辑也没执行」的挂起。
+     * - requestLocationUpdates：void，不注册监听（原逻辑不执行），返回 null 即代表拦截。
+     */
     private void hookLocation(ClassLoader cl) {
         try {
             Class<?> lm = Class.forName("android.location.LocationManager", false, cl);
             int n = 0;
             for (Method method : lm.getDeclaredMethods()) {
                 String name = method.getName();
-                if (!name.equals("getLastKnownLocation")
-                        && !name.equals("requestLocationUpdates")
-                        && !name.equals("getCurrentLocation")) continue;
-                try {
-                    m.hook(method).intercept(chain -> {
+                Class<?>[] pts = method.getParameterTypes();
+                if (name.equals("getLastKnownLocation")) {
+                    hookLocationMethod(method, chain -> {
                         Hooks.noteHit(chain);
-                        Class<?> rt = ((java.lang.reflect.Method) chain.getExecutable()).getReturnType();
-                        return rt == void.class || rt == boolean.class ? null : null;
+                        return null;
                     });
                     n++;
-                } catch (Throwable ignored) {
+                } else if (name.equals("getCurrentLocation")) {
+                    hookLocationMethod(method, chain -> {
+                        // 通过调用方的 Executor 回调一个 null 位置，只回调一次。
+                        boolean delivered = Hooks.deliverEmptyCurrentLocation(
+                                pts, chain.getArgs(), consumer -> {
+                                    try {
+                                        ((java.util.function.Consumer<Object>) consumer).accept(null);
+                                    } catch (Throwable ignored) {
+                                    }
+                                });
+                        if (delivered) {
+                            Hooks.noteHit(chain, "loc current");
+                            return null;
+                        }
+                        // 形参里找不到 Executor/Consumer，或调用方已取消：投递失败必须放行原逻辑，
+                        // 否则调用方既等不到回调、原逻辑也没执行，会一直等待或超时。
+                        Hooks.noteHit(chain, "loc current pass");
+                        return chain.proceed();
+                    });
+                    n++;
+                } else if (name.equals("requestLocationUpdates")
+                        || name.equals("requestSingleUpdate")) {
+                    hookLocationMethod(method, chain -> {
+                        Hooks.noteHit(chain);
+                        return null;
+                    });
+                    n++;
                 }
             }
             Logs.i("location hooked=" + n);
         } catch (Throwable t) {
             Logs.i("location miss: " + t);
+        }
+    }
+
+    private void hookLocationMethod(Method method, Hooks.Interceptor interceptor) {
+        try {
+            m.hook(method).intercept(interceptor::intercept);
+        } catch (Throwable ignored) {
         }
     }
 

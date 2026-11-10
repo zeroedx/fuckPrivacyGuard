@@ -20,18 +20,24 @@ echo "[1/2] javac (module under test + stubs + tests)"
 "$JAVAC" -encoding UTF-8 -nowarn -cp libs/libxposed-api.jar -d "$OUT" \
     tests/stub/android/util/Log.java \
     tests/stub/android/app/PendingIntent.java \
+    tests/stub/android/content/Context.java \
+    tests/stub/android/content/Intent.java \
+    tests/stub/android/os/CancellationSignal.java \
+    tests/stub/android/app/usage/UsageStatsManager.java \
     tests/stub/dalvik/system/DexFile.java \
     src/io/github/zeroedx/fuckprivacyguard/Logs.java \
     src/io/github/zeroedx/fuckprivacyguard/Hooks.java \
     tests/src/io/github/zeroedx/fuckprivacyguard/HooksNoteHitTest.java \
     tests/src/io/github/zeroedx/fuckprivacyguard/HooksNoteHitConcurrencyTest.java \
-    tests/src/io/github/zeroedx/fuckprivacyguard/HooksSmsSignatureTest.java
+    tests/src/io/github/zeroedx/fuckprivacyguard/HooksSmsSignatureTest.java \
+    tests/src/io/github/zeroedx/fuckprivacyguard/HooksP0ContractTest.java
 
 echo "[2/2] run"
 rc=0
 "$JAVA" -cp "$OUT:libs/libxposed-api.jar" io.github.zeroedx.fuckprivacyguard.HooksNoteHitTest || rc=1
 "$JAVA" -cp "$OUT:libs/libxposed-api.jar" io.github.zeroedx.fuckprivacyguard.HooksNoteHitConcurrencyTest || rc=1
 "$JAVA" -cp "$OUT:libs/libxposed-api.jar" io.github.zeroedx.fuckprivacyguard.HooksSmsSignatureTest || rc=1
+"$JAVA" -cp "$OUT:libs/libxposed-api.jar" io.github.zeroedx.fuckprivacyguard.HooksP0ContractTest || rc=1
 [ "$rc" -eq 0 ] || exit 1
 
 echo "OK -> tests passed"

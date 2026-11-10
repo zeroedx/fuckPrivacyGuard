@@ -9,7 +9,11 @@
 | MSA | `com.miui.systemAdSolution` 方法层 | 广告使用画像按「今天已打开 = true / 最后使用 = -1」返回；OneTrack 的 `track*` / `adTrack*` 返回空。类名跨版本会漂移，按修饰符 + 参数 + 返回类型 + 包名组合判定 |
 | SystemHelper | `dm.wo.com.cn` | 唯一已知上报地址 `http://dm.wo.com.cn:18080/register`（明文 HTTP、应用层加密封装），硬编码在 `c.d.a.b.d` 常量中；组件为运营商设备管理 / 网络优化用途，非恶意软件。同时挂标准应用清单查询入口（`getInstalledPackages` / `getInstalledApplications`）与 `c.d.a.b.f` 上报出口，避免只拦出口时被换域名绕过 |
 | guardprovider | `flash.sec.miui.com` | 应用特征上传接口 |
+| SystemHelper | 上报许可判断 | `public static (Context) -> boolean`，true 表示用户已同意运营商服务改进。返回 false 从源头关掉上报许可。已在目标 APK 上核对命中 `g1.l.a`（常量池含 `operator_service_improve_plan` / `device_provisioned` / `RegisterUtils`，与上游许可判断类一致）。判据只依赖签名，**不写死混淆类名**；不同 ROM 版本若引入同签名的其它判断方法，无法从签名区分，故**整个扫描范围内候选必须唯一**，命中 0 个或多个一律跳过并记 `sh gate skip cands=N` |
+| SystemHelper | 应用使用统计线程 | `Thread` 子类的无参 `run()`，且类成员签名里出现 `android.app.usage.*`（使用统计线程必然引用 `UsageStatsManager` / `UsageStats`）。目标 APK 里 `e1` 包下有 4 个 Thread 子类，只按「Thread + run()」会误伤下载/定时线程，故追加类型引用条件。**全范围候选必须唯一**，多于一个整体跳过并记 `sh usage skip cands=N`。hook 该 run 为空实现，统计不再产生 |
+| SystemHelper | 采集类广播接收器 | `control` 包下 7 个 `onReceive(Context,Intent)`（AppInfo / Schedule / GetSignalInfo / SignalInfo / OnBoot / SIMState / ConnectState）。类名未被混淆，按 FQN 取类；每个类要求入口唯一，否则跳过该类并记 `sh receiver skip ... cands=N`。只 hook 各接收器自己的入口，不触碰系统广播框架，也不记录 Intent 内容 |
 | guardprovider | `detection-aigc.engine.miui.com` | AI 通话预警云检测 |
+| guardprovider | AiGuardService | `com.miui.guardprovider.aiguard.AiGuardService.onStartCommand` 返回 `START_NOT_STICKY` 并 `stopSelf`，本地录音 / 场景检测一并停用。入口按「public 实例方法 + 签名」判定并要求**唯一**，否则跳过并记 `guard aiguard skip cands=N`。只 hook 该类，不影响 guardprovider 其它服务 |
 | guardprovider | `fraud-detection.engine.miui.com` | 反诈配置拉取 |
 | analytics | `*.miui.com` `*.xiaomi.com` `*.xiaomi.net` | 整域拦截，覆盖 tracking / om.tracking / 区域与备份域 / sdkconfig |
 | analytics | `dns.google` `8.8.8.8` `8.8.4.4` | 6.33.0 国际版 DoH + IP 缓存重试通道 |
@@ -65,6 +69,16 @@
    flags 重载）。写死某一个重载时，签名对不上会抛 `NoSuchMethodException` 并静默失效，
    所以改为按「方法名 + 参数结构 + 返回类型」的谓词匹配，旧版本不存在的新重载用反射取类、
    取不到就跳过。
+7. **拦截返回值必须符合 API 契约，不能让调用方永久等待**。void 方法返回 null 只是「不执行原逻辑」，
+   调用方拿不到结果也不会报错。`LocationManager#getCurrentLocation` 是回调式 API：拦截时必须
+   通过调用方传入的 `Executor` 用 `Consumer` 回调一次（传 null 表示「无可用位置」），
+   且**恰好一次**；形参里找不到 `Executor`/`Consumer`（或调用方已取消）时**放行原逻辑**
+   （`chain.proceed()`），绝不出现「既没回调、原逻辑也没执行」的挂起。
+   `Settings.Secure#getString` 的 `android_id` 分支返回稳定假值而非 null，避免拼接型调用方 NPE。
+8. **无法唯一确认的目标一律跳过**。许可判断、统计线程、接收器入口、服务入口都以「候选唯一」为前提，
+   命中 0 个或多个都只记诊断日志（`sh gate skip cands=` / `sh usage skip cands=` /
+   `sh receiver skip` / `guard aiguard skip cands=`）而不安装 hook。诊断只记类名与候选数量，
+   不读取、不记录任何隐私数据或 Intent 内容。宁可漏拦，也不误伤目标进程的其它方法。
 
 ## 扩展新规则
 

@@ -57,6 +57,9 @@ final class Catalog {
     static final Group[] GROUPS = {
             new Group(T("SystemHelper"), "com.mobiletools.systemhelper", Config.K_G_SYSHELPER, new Item[]{
                     new Item(T("拦截上报"), T("dm.wo.com.cn，设备 / SIM / 基站 / 应用列表"), Config.K_SYSHELPER, true),
+                    new Item(T("上报许可判断"), T("运营商服务改进许可判断返回未同意；从源头关掉上报许可"), Config.K_SH_POLICY, true),
+                    new Item(T("应用使用统计"), T("拦截统计线程；不再枚举已安装应用与使用记录"), Config.K_SH_USAGE, true),
+                    new Item(T("采集广播接收器"), T("7 个采集类接收器不再响应；信号 / SIM / 应用信息采集停用"), Config.K_SH_RECEIVER, true),
                     new Item(T("整进程断网"), T("默认关：只拦上报域名与方法层。开启后该进程所有外网请求一并拦截，只留本机回环"), Config.K_SYSHELPER_ALLNET, false),
                     new Item(T("定位（GPS）"), T("只对本应用：位置查询返回空"), Config.K_LOC_SH, false),
                     new Item(T("基站信息"), T("只对本应用：基站查询返回空，不影响信号显示"), Config.K_CELL_SH, false),
@@ -67,6 +70,7 @@ final class Catalog {
                     new Item(T("AI 通话预警云检测"), T("detection-aigc.engine.miui.com"), Config.K_GUARD_AIGC, true),
                     new Item(T("反诈配置拉取"), T("fraud-detection.engine.miui.com"), Config.K_GUARD_FRAUD, true),
                     new Item(T("云查上传（Flamingo）"), T("virus-engine.sec.miui.com；关闭后不再上传应用清单，本地病毒库照常"), Config.K_GP_CLOUDSCAN, false),
+                    new Item(T("AI 通话检测服务"), T("阻止 AiGuardService 启动，本地录音 / 场景检测一并停用"), Config.K_GP_AIGUARD, true),
                     new Item(T("静默录屏拦截"), T("阻止 createVirtualDisplay 整屏录制，不影响正常截屏"), Config.K_GP_SCREENGUARD, true),
                     new Item(T("引擎日志上传"), T("logupdate.avlyun.sec.miui.com；只影响日志回传，不影响本地查毒与病毒库更新"), Config.K_GP_ENGINELOG, true),
                     new Item(T("定位（GPS）"), T("只对本应用：位置查询返回空"), Config.K_LOC_GP, false),

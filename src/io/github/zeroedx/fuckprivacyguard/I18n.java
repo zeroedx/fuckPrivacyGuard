@@ -107,6 +107,18 @@ final class I18n {
         EN.put("云查上传（Flamingo）", "Cloud scan upload (Flamingo)");
         EN.put("virus-engine.sec.miui.com；关闭后不再上传应用清单，本地病毒库照常",
                 "virus-engine.sec.miui.com; app list is no longer uploaded, local virus database still works");
+        EN.put("上报许可判断", "Consent gate");
+        EN.put("运营商服务改进许可判断返回未同意；从源头关掉上报许可",
+                "Operator service-improvement consent check returns not granted; reporting is disabled at the source");
+        EN.put("应用使用统计", "App usage stats");
+        EN.put("拦截统计线程；不再枚举已安装应用与使用记录",
+                "Blocks the stats thread; installed apps and usage history are no longer enumerated");
+        EN.put("采集广播接收器", "Collection receivers");
+        EN.put("7 个采集类接收器不再响应；信号 / SIM / 应用信息采集停用",
+                "The 7 collection receivers stop responding; signal / SIM / app info collection is disabled");
+        EN.put("AI 通话检测服务", "AI call detection service");
+        EN.put("阻止 AiGuardService 启动，本地录音 / 场景检测一并停用",
+                "Blocks AiGuardService from starting; local recording and scene detection stop as well");
         EN.put("静默录屏拦截", "Block silent screen recording");
         EN.put("阻止 createVirtualDisplay 整屏录制，不影响正常截屏",
                 "Blocks createVirtualDisplay; normal screenshots unaffected");

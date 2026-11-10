@@ -37,6 +37,11 @@ public final class Config {
     public static final String K_CELL_DM = "cell_dm";     // 移动 DM 基站
     public static final String K_WIFI_DM = "wifi_dm";     // 移动 DM Wi-Fi 扫描
 
+    /* 2.1.0 新增：SystemHelper 上报链路的许可判断 / 统计线程 / 广播接收器 */
+    public static final String K_SH_POLICY = "sh_policy";   // 运营商服务改进许可判断
+    public static final String K_SH_USAGE = "sh_usage";     // 应用使用统计线程
+    public static final String K_SH_RECEIVER = "sh_receiver"; // 采集类广播接收器
+
     /* 分组总开关 */
     public static final String K_G_SYSHELPER = "g_syshelper";
     public static final String K_G_GUARD = "g_guardprovider";
@@ -95,6 +100,8 @@ public final class Config {
     public static final String K_GP_ENGINELOG = "block_gp_enginelog";
     public static final String K_GP_CLOUDSCAN = "block_gp_cloudscan";
     public static final String K_GP_SCREENGUARD = "block_gp_screenguard";
+    /** guardprovider 的 AI 通话预警检测服务（AiGuardService） */
+    public static final String K_GP_AIGUARD = "block_gp_aiguard";
     public static final String K_TRUST_FIND = "block_trust_find";
     public static final String K_G_REGISTRATION = "g_registration";
     public static final String K_G_DMREG = "g_dmregservice";

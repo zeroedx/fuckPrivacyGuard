@@ -283,6 +283,174 @@ final class Hooks {
         }
     }
 
+    /**
+     * SystemHelper 许可判断的形态：public static + 单参 Context + 返回 boolean。
+     * 只判签名与修饰符，不依赖混淆类名。类型用类名字符串比较，便于离线单测。
+     */
+    static boolean isPolicyGate(Class<?>[] p, Class<?> ret, int mods) {
+        if (ret != boolean.class) return false;
+        if (!java.lang.reflect.Modifier.isStatic(mods)) return false;
+        if (!java.lang.reflect.Modifier.isPublic(mods)) return false;
+        return p != null && p.length == 1 && isNamed(p[0], "android.content.Context");
+    }
+
+    /**
+     * 应用使用统计线程 run() 的形态：Thread 子类的无参 void run()，
+     * 且该类的成员签名里出现 {@code android.app.usage.*} 类型。
+     *
+     * 目标 APK 里 Thread 子类不止一个（下载、定时器等），只按「Thread 子类 + run()」
+     * 判定会误伤。使用统计线程必然引用 {@code UsageStatsManager} / {@code UsageStats}，
+     * 因此追加「引用使用统计类型」这一结构性条件，不写死混淆类名。
+     */
+    static boolean isUsageRun(Class<?> cls, String name, Class<?>[] p, Class<?> ret, int mods) {
+        if (!"run".equals(name)) return false;
+        if (ret != void.class) return false;
+        if (p == null || p.length != 0) return false;
+        if (java.lang.reflect.Modifier.isAbstract(mods)
+                || java.lang.reflect.Modifier.isNative(mods)) return false;
+        return isThreadSubclass(cls) && referencesUsageTypes(cls);
+    }
+
+    /** 类的成员签名（方法参数/返回、字段）里是否出现 android.app.usage.* 类型 */
+    static boolean referencesUsageTypes(Class<?> c) {
+        try {
+            for (java.lang.reflect.Method m : c.getDeclaredMethods()) {
+                if (isUsageType(m.getReturnType())) return true;
+                for (Class<?> t : m.getParameterTypes()) {
+                    if (isUsageType(t)) return true;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            for (java.lang.reflect.Field f : c.getDeclaredFields()) {
+                if (isUsageType(f.getType())) return true;
+            }
+        } catch (Throwable ignored) {
+        }
+        return false;
+    }
+
+    private static boolean isUsageType(Class<?> t) {
+        return t != null && t.getName().startsWith("android.app.usage.");
+    }
+
+    private static boolean isThreadSubclass(Class<?> c) {
+        for (Class<?> s = c; s != null; s = s.getSuperclass()) {
+            if ("java.lang.Thread".equals(s.getName())) return true;
+        }
+        return false;
+    }
+
+    /**
+     * 采集类广播接收器 onReceive 的形态：onReceive(Context,Intent) -> void。
+     * 用于按 FQN 取到的 Receiver 类里挑选唯一入口。
+     */
+    static boolean isReceiverOnReceive(String name, Class<?>[] p, Class<?> ret, int mods) {
+        if (!"onReceive".equals(name)) return false;
+        if (ret != void.class) return false;
+        if (java.lang.reflect.Modifier.isAbstract(mods)
+                || java.lang.reflect.Modifier.isNative(mods)) return false;
+        return p != null && p.length == 2
+                && isNamed(p[0], "android.content.Context")
+                && isNamed(p[1], "android.content.Intent");
+    }
+
+    /**
+     * Service.onStartCommand 的形态：public onStartCommand(Intent,int,int) -> int。
+     * 用于按 FQN 取到的服务类里挑选唯一入口，只依赖签名与修饰符，不依赖混淆名。
+     *
+     * 必须是 public 的实例方法（非 static/abstract/native）：Service 生命周期入口按契约
+     * 就是 public 实例方法，排除这些修饰符可避免误取同名 helper 或未实现的桥接方法。
+     */
+    static boolean isServiceOnStartCommand(String name, Class<?>[] p, Class<?> ret, int mods) {
+        if (!"onStartCommand".equals(name)) return false;
+        if (ret != int.class) return false;
+        if (!java.lang.reflect.Modifier.isPublic(mods)) return false;
+        if (java.lang.reflect.Modifier.isStatic(mods)
+                || java.lang.reflect.Modifier.isAbstract(mods)
+                || java.lang.reflect.Modifier.isNative(mods)) return false;
+        if (p == null || p.length != 3) return false;
+        return isNamed(p[0], "android.content.Intent")
+                && p[1] == int.class && p[2] == int.class;
+    }
+
+    /**
+     * Android ID 的替代值：固定 16 位小写十六进制。
+     *
+     * Settings.Secure.getString(cr, "android_id") 的调用方常直接当 String 用，
+     * 返回 null 会 NPE。AOSP 在无权限/无值时返回 null，但拼接型调用方不判空。
+     * 这里返回一个格式合法、不含真实标识的稳定值：长度与字符集都符合
+     * Android ID 的既有形态（16 位 hex），且对同一安装稳定，便于需要稳定 ID 的场景。
+     */
+    static String androidIdStub() {
+        return "0000000000000000";
+    }
+
+    /** getCurrentLocation 的一次性回调接收器：拿到形参里的 Consumer 后投递结果。 */
+    interface LocationSink {
+        void deliver(Object consumer);
+    }
+
+    /**
+     * LocationManager.getCurrentLocation 的形参判定与回调投递。
+     *
+     * 该方法是 void，返回 null 只会让原逻辑不执行——调用方既拿不到结果也不报错，
+     * 会一直等待或超时。正确做法是替它完成一次回调：在调用方传入的 Executor 上
+     * 用 Consumer 接收一个 null 位置（表示「无可用位置」），且**恰好回调一次**。
+     *
+     * 形参里必须同时存在 Executor 与 Consumer 类型，否则不做任何事（宁可放行也不伪造）。
+     * 类型用类名字符串比较，参数用 Object 处理，便于离线单测。
+     * 返回是否投递了回调。
+     */
+    static boolean deliverEmptyCurrentLocation(Class<?>[] pts, java.util.List<Object> args,
+                                               LocationSink sink) {
+        if (pts == null || args == null || sink == null) return false;
+        Object executor = null;
+        Object consumer = null;
+        Object cancelSignal = null;
+        for (Class<?> p : pts) {
+            if (executor == null && "java.util.concurrent.Executor".equals(p.getName())) {
+                executor = argOfType(args, p);
+            } else if (consumer == null && "java.util.function.Consumer".equals(p.getName())) {
+                consumer = argOfType(args, p);
+            } else if (cancelSignal == null && "android.os.CancellationSignal".equals(p.getName())) {
+                cancelSignal = argOfType(args, p);
+            }
+        }
+        // 调用方已取消：不再回调，与平台语义一致（取消后不应再收到结果）。
+        if (cancelSignal != null && isCanceled(cancelSignal)) return false;
+        if (executor == null || consumer == null) return false;
+        final Object cb = consumer;
+        try {
+            ((java.util.concurrent.Executor) executor).execute(() -> sink.deliver(cb));
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static Object argOfType(java.util.List<Object> args, Class<?> type) {
+        for (Object a : args) {
+            if (type.isInstance(a)) return a;
+        }
+        return null;
+    }
+
+    /**
+     * 反射读取 CancellationSignal.isCanceled()：用类名字符串判定，不引用该类，
+     * 便于离线单测；读不到时按「未取消」处理（宁可回调一次，也不静默丢弃结果）。
+     */
+    private static boolean isCanceled(Object signal) {
+        try {
+            java.lang.reflect.Method m = signal.getClass().getMethod("isCanceled");
+            Object v = m.invoke(signal);
+            return Boolean.TRUE.equals(v);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
     private static boolean isNamed(Class<?> c, String name) {
         return c != null && name.equals(c.getName());
     }
