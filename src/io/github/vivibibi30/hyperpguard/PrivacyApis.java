@@ -64,6 +64,13 @@ final class PrivacyApis {
             Hooks.ret(m, cl, "android.app.usage.UsageStatsManager",
                     "queryUsageStats", new Class<?>[]{int.class, long.class, long.class},
                     new ArrayList<Object>(), "usage queryUsageStats");
+            // Android 15（API 35）起新增 queryEvents(UsageEventsQuery) 重载，
+            // 走这条入口的调用方绕过了上面的 (long,long) 拦截。
+            // 该类在 35 之前不存在，用反射取，取不到就只挂旧重载（与 applist flags 同一手法）。
+            Class<?> ueq = findClass(cl, "android.app.usage.UsageEventsQuery");
+            boolean u = ueq != null && Hooks.ret(m, cl, "android.app.usage.UsageStatsManager",
+                    "queryEvents", new Class<?>[]{ueq}, null, "usage queryEvents(query)");
+            Logs.i("usage queryEvents(UsageEventsQuery)=" + u);
         }
         if (ids) {
             // IMEI / MEID / DeviceId 返回 null；IMSI / ICCID 保留运营商字段
@@ -107,16 +114,20 @@ final class PrivacyApis {
             Logs.i("sensitive hooks=" + on + " pkg=" + pkg);
         }
         if (sms) {
-            Hooks.ret(m, cl, "android.telephony.SmsManager", "sendTextMessage",
-                    new Class<?>[]{String.class, String.class, String.class, String.class,
-                            android.app.PendingIntent.class}, null, "sms sendTextMessage");
-            Hooks.ret(m, cl, "android.telephony.SmsManager", "sendMultipartTextMessage",
-                    new Class<?>[]{String.class, String.class, java.util.List.class,
-                            java.util.List.class, java.util.List.class}, null,
-                    "sms sendMultipartTextMessage");
-            Hooks.ret(m, cl, "android.telephony.SmsManager", "sendDataMessage",
-                    new Class<?>[]{String.class, String.class, short.class, byte[].class,
-                            android.app.PendingIntent.class}, null, "sms sendDataMessage");
+            // 按签名谓词扫描 SmsManager，覆盖 Android 10–17 上的全部发送重载。
+            // 之前写死三个重载且签名与 AOSP 不符（参数个数/类型都对不上），
+            // getDeclaredMethod 抛 NoSuchMethodException，整段静默失效；
+            // 现在改为结构判定，写错一个重载也不会拖垮其余。
+            // SmsManager 在框架层，不在应用 dex 里，直接按类名反射即可。
+            int n = Hooks.hookBySignature(m,
+                    java.util.Collections.singletonList("android.telephony.SmsManager"),
+                    cl, method -> Hooks.isSmsSend(method.getName(),
+                            method.getParameterTypes(), method.getReturnType()),
+                    chain -> {
+                        Hooks.noteHit(chain, "sms");
+                        return null;
+                    });
+            Logs.i("sms hooks=" + n);
         }
         if (xmsf) {
             hookXmsfBroadcast(cl, "android.content.ContextWrapper");

@@ -292,7 +292,10 @@ public class HookEntry extends XposedModule {
         if ("com.mobiletools.systemhelper".equals(pkg)) {
             if (!Config.on(Config.K_G_SYSHELPER, true)) return;
             Logs.i("attach systemhelper");
-            privacySafe(cl, pkg, false, false, true, false, false);
+            // appList=true：挂标准应用清单查询（getInstalledPackages/Applications），
+            // 与下面 c.d.a.b.f 的厂商上报出口拦截并存。只拦「上报出口」的话，
+            // 组件换个域名或换条方法上报应用清单就漏了（审计 P0-2）。
+            privacySafe(cl, pkg, true, false, true, false, false);
             boolean upload = Hooks.ret(this, cl, "c.d.a.b.f", "a",
                     new Class<?>[]{String.class, byte[].class, byte[].class}, Boolean.FALSE,
                     "systemhelper upload");

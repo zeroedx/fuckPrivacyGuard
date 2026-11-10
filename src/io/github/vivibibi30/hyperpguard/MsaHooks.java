@@ -42,13 +42,22 @@ final class MsaHooks {
             for (Method method : methods) {
                 try {
                     if (isAppOpenedToday(name, method)) {
-                        m.hook(method).intercept(chain -> Boolean.TRUE);
+                        m.hook(method).intercept(chain -> {
+                            Hooks.noteHit(chain, "msa opened");
+                            return Boolean.TRUE;
+                        });
                         opened++;
                     } else if (isLastUsedTime(method)) {
-                        m.hook(method).intercept(chain -> Long.valueOf(-1L));
+                        m.hook(method).intercept(chain -> {
+                            Hooks.noteHit(chain, "msa lastUsed");
+                            return Long.valueOf(-1L);
+                        });
                         lastUsed++;
                     } else if (isFirstActiveTime(name, method)) {
-                        m.hook(method).intercept(chain -> Long.valueOf(-1L));
+                        m.hook(method).intercept(chain -> {
+                            Hooks.noteHit(chain, "msa firstActive");
+                            return Long.valueOf(-1L);
+                        });
                         firstActive++;
                     }
                 } catch (Throwable ignored) {
@@ -69,7 +78,10 @@ final class MsaHooks {
                 if (method.getReturnType() != void.class) continue;
                 if (Modifier.isAbstract(method.getModifiers())) continue;
                 try {
-                    m.hook(method).intercept(chain -> null);
+                    m.hook(method).intercept(chain -> {
+                        Hooks.noteHit(chain, "msa track");
+                        return null;
+                    });
                     n++;
                 } catch (Throwable ignored) {
                 }

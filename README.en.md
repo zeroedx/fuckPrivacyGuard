@@ -1,8 +1,8 @@
-# HyperPGuard
+# fuckPrivacyGuard
 
 ![license](https://img.shields.io/badge/license-GPL--3.0-blue)
 ![language](https://img.shields.io/badge/language-Java-orange)
-![release](https://img.shields.io/github/v/release/vivibibi30/hyperpguard?label=release&color=green)
+![release](https://img.shields.io/github/v/release/zeroedx/fuckPrivacyGuard?label=release&color=green)
 ![android](https://img.shields.io/badge/Android-10--16-green)
 
 [简体中文](README.md) · English
@@ -18,16 +18,21 @@ This project is based on static analysis and runtime observation of the componen
 - Android 10 – 16 on HyperOS / MIUI, LSPosed 2.2.x (libxposed API 100+)
 - Root for the in-app "restart" and "view log" actions (KernelSU, Magisk, APatch)
 
+> Android 17 / SDK 37 / HyperOS 4 has source-level adaptation but is **not yet verified on a
+> real device**: hook signatures were checked against the real android-37.0 platform jar and a
+> signature bug that silently disabled the SMS hooks was fixed. The declared support range still
+> ends at Android 16. See [compatibility and coverage](docs/COMPATIBILITY.md).
+
 ## Install
 
-1. Install `HyperPGuard.apk` from [Releases](https://github.com/vivibibi30/hyperpguard/releases)
+1. Install `fuckPrivacyGuard.apk` from [Releases](https://github.com/zeroedx/fuckPrivacyGuard/releases)
 2. Enable the module in LSPosed
 3. Open the app once; it requests the full scope through the official libxposed API, or pick packages manually in LSPosed
 4. Press "restart" on a card, or "restart all", so the target process reloads with the module
 
 Packages outside the scope are never injected.
 
-After an in-place upgrade, LSPosed does **not** automatically add newly declared components to the scope. Re-check LSPosed → Modules → HyperPGuard → Scope; the components added in 1.6.x are "Ads (MSA)" and "Diagnostics (MiSight)". When one is missing, its card shows "Not in scope — tap to add".
+After an in-place upgrade, LSPosed does **not** automatically add newly declared components to the scope. Re-check LSPosed → Modules → fuckPrivacyGuard → Scope; the components added in 1.6.x are "Ads (MSA)" and "Diagnostics (MiSight)". When one is missing, its card shows "Not in scope — tap to add".
 
 ## Usage
 
@@ -94,11 +99,13 @@ Network and method layers are independent: when obfuscated class names change, d
 
 ## UI
 
-| Main screen | Group cards |
+| Brand icon | Group cards |
 |---|---|
-| ![main](docs/images/ui-main.png) | ![cards](docs/images/ui-cards.png) |
+| ![brand](docs/images/brand-icon.png) | ![cards](docs/images/ui-cards.png) |
 
-Dark mode follows the system; the night palette is pure black with `#1C1C1E` cards.
+Since 2.0 the UI is six pages behind a bottom navigation bar: Home (status / master switch / bulk actions), Categories (13 component groups), Search (filter by name, description, package or config key), Diagnostics (scope / runtime records / self-check), Settings (general / appearance / rules / logs) and About (links / credits / license).
+
+Dark mode follows the system; the night palette is pure black with `#1C1C1E` cards. Appearance can also be pinned to Light or Dark in Settings.
 
 ## Build
 

@@ -7,7 +7,7 @@
 | 应用 | 规则 | 依据 |
 |---|---|---|
 | MSA | `com.miui.systemAdSolution` 方法层 | 广告使用画像按「今天已打开 = true / 最后使用 = -1」返回；OneTrack 的 `track*` / `adTrack*` 返回空。类名跨版本会漂移，按修饰符 + 参数 + 返回类型 + 包名组合判定 |
-| SystemHelper | `dm.wo.com.cn` | 唯一已知上报地址 `http://dm.wo.com.cn:18080/register`（明文 HTTP、应用层加密封装），硬编码在 `c.d.a.b.d` 常量中；组件为运营商设备管理 / 网络优化用途，非恶意软件 |
+| SystemHelper | `dm.wo.com.cn` | 唯一已知上报地址 `http://dm.wo.com.cn:18080/register`（明文 HTTP、应用层加密封装），硬编码在 `c.d.a.b.d` 常量中；组件为运营商设备管理 / 网络优化用途，非恶意软件。同时挂标准应用清单查询入口（`getInstalledPackages` / `getInstalledApplications`）与 `c.d.a.b.f` 上报出口，避免只拦出口时被换域名绕过 |
 | guardprovider | `flash.sec.miui.com` | 应用特征上传接口 |
 | guardprovider | `detection-aigc.engine.miui.com` | AI 通话预警云检测 |
 | guardprovider | `fraud-detection.engine.miui.com` | 反诈配置拉取 |
@@ -57,13 +57,21 @@
 3. **方法层与域名层互不依赖**。方法层失配只影响自身，域名层继续工作；反之亦然。
 4. **失败时倾向拦截**。读取不到配置、规则为空时按"拦截"处理，避免静默放行。
 5. **可观测**。每次拦截、每次 hook 成功/失配都会落一条日志，便于定位是哪一层在起作用。
+   「安装成功」与「实际被调用」是两条不同的日志：前者是 `hook ok`，后者是 `hit` 行
+   （`Hooks.noteHit`）。方法层（XSOF / MSA / 统计）与 SystemHelper 的拦截回调里也会记 `hit`，
+   不得把「装上 hook」当成「已经拦到」。
+6. **方法签名按结构判定，不写死重载**。平台方法的重载个数与参数类型会随版本增加
+   （如 `SmsManager` 的发送入口、`UsageStatsManager#queryEvents`、`getInstalledPackages` 的
+   flags 重载）。写死某一个重载时，签名对不上会抛 `NoSuchMethodException` 并静默失效，
+   所以改为按「方法名 + 参数结构 + 返回类型」的谓词匹配，旧版本不存在的新重载用反射取类、
+   取不到就跳过。
 
 ## 扩展新规则
 
 1. 打开「记录未拦截访问」跑一段时间，收集目标进程实际访问的域名（日志中带 `?` 前缀）
 2. 在该 APK 中确认域名的全部子域，排除功能接口
 3. 在 `HookEntry` 对应分支增加 `Rule("host")` 或 `Rule("host", "/path")`
-4. 在 `Config` 增加开关常量，在 `MainActivity` 增加对应条目
+4. 在 `Config` 增加开关常量，在 `Catalog` 增加对应条目
 5. 重新构建，在目标应用上验证 `X(host)` / `X(host+path)` 日志（grep 用 `grep -F 'X(host'`）
 
 若某接口同时承担上报与功能，优先按路径拆分，不要整域拦截。

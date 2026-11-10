@@ -1,10 +1,10 @@
 <div align="center">
 
-# HyperPGuard
+# fuckPrivacyGuard
 
 ![license](https://img.shields.io/badge/license-GPL--3.0-blue)
 ![language](https://img.shields.io/badge/language-Java-orange)
-![release](https://img.shields.io/github/v/release/vivibibi30/hyperpguard?label=release&color=green)
+![release](https://img.shields.io/github/v/release/zeroedx/fuckPrivacyGuard?label=release&color=green)
 ![android](https://img.shields.io/badge/Android-10--16-green)
 ![status](https://img.shields.io/badge/status-按需维护-2da44e?style=flat-square)
 
@@ -30,20 +30,22 @@
 - LSPosed 2.2.x（libxposed API 100+）
 - Root：KernelSU / Magisk / APatch（「重启」「查看日志」需要）
 
-> Android 17 / SDK 37 / HyperOS 4 **尚未完成专项适配与真机验证**。当前支持范围、已覆盖能力、
-> 以及尚未覆盖（Native / HAL、Binder / AIDL、麦克风、摄像头、蓝牙）或尚未验证的能力，
-> 见 [兼容性与覆盖范围](docs/COMPATIBILITY.md)。
+> Android 17 / SDK 37 / HyperOS 4 **已完成源码级适配，但尚未在真机验证**：已按真实的
+> android-37.0 平台 jar 静态核对被 hook 的公开签名，并修掉了写死签名导致的失效（详见
+> [兼容性与覆盖范围](docs/COMPATIBILITY.md) 第二节）。声明支持范围仍止于 Android 16；
+> 已覆盖能力、尚未覆盖（Native / HAL、Binder / AIDL、麦克风、摄像头、蓝牙）与待真机验证项，
+> 同样见该文档。
 
 ## 安装
 
-1. 安装 `HyperPGuard`
-2. 在 LSPosed 中启用「HyperPGuard」
+1. 安装 `fuckPrivacyGuard`
+2. 在 LSPosed 中启用「fuckPrivacyGuard」
 3. 打开应用，首次会向 LSPosed 请求全部作用域，允许即可；也可在 LSPosed 里手动勾选
 4. 在模块里对目标应用点一次「重启」，或点批量行的「全部重启」，让它重新加载
 
 作用域外的应用不会被注入。
 
-覆盖升级后，LSPosed 的作用域不会自动包含新增组件，需要到 LSPosed → 模块 → HyperPGuard → 作用域 里重新确认；1.6.x 新增的是「广告组件（MSA）」与「系统诊断」，漏勾时对应分组会显示「未在作用域，点此加入」。
+覆盖升级后，LSPosed 的作用域不会自动包含新增组件，需要到 LSPosed → 模块 → fuckPrivacyGuard → 作用域 里重新确认；1.6.x 新增的是「广告组件（MSA）」与「系统诊断」，漏勾时对应分组会显示「未在作用域，点此加入」。
 
 ## 使用
 
@@ -94,9 +96,11 @@
 
 ## 界面预览
 
-| 总开关 / 批量操作 | 分组卡片 |
+| 品牌图标 | 分组卡片 |
 |---|---|
-| ![主界面](docs/images/ui-main.png) | ![分组卡片](docs/images/ui-cards.png) |
+| ![品牌图标](docs/images/brand-icon.png) | ![分组卡片](docs/images/ui-cards.png) |
+
+2.0 起界面改为底部导航的六个页面：首页（状态 / 总开关 / 批量操作）、分类（13 组组件）、搜索（按名称 / 说明 / 包名 / Key 过滤）、诊断（作用域 / 运行记录 / 自检）、设置（通用 / 外观 / 规则 / 日志）、关于（链接 / 致谢 / 许可）。
 
 每组右上角就是该应用在 LSPosed 里的作用域开关；组关闭时组内子项置灰且不可点击。
 
@@ -147,7 +151,19 @@ src/io/github/vivibibi30/hyperpguard/
 ├── AnalyticsHooks.java 统计方法层与签名扫描
 ├── Hooks.java          公共 hook 工具
 ├── Logs.java           统一日志标签
-└── MainActivity.java   设置界面
+├── I18n.java           中英文文案查表
+├── MainActivity.java   宿主：导航 / 滚动 / Insets / 深浅色 / LSPosed 连接
+├── Ui.java             自绘界面件：色板、卡片、开关行、弹窗着色
+├── Catalog.java        分组与子项的唯一来源（13 组 / 59 项）
+├── Page.java           页面基类
+├── HomePage.java       首页：状态、总开关、批量操作
+├── CategoriesPage.java 分类：分组卡片与子项开关
+├── SearchPage.java     搜索：按名称 / 说明 / 包名 / Key 过滤
+├── DiagnosticsPage.java 诊断：作用域、运行记录、自检
+├── SettingsPage.java   设置：通用开关、外观、规则、日志
+├── AboutPage.java      关于：品牌、链接、致谢与许可
+├── Dialogs.java        自定义规则 / 行为库 / 日志 / 免责声明 / 更新
+└── ModuleState.java    LSPosed 连接、作用域与 root 命令
 ```
 
 ```
@@ -222,7 +238,7 @@ build.sh              一键构建
 - 自定义规则页重做；行为库状态正文不可复制
 - LSPosed 断开重试 5 → 30 次，自检自动重连
 
-更早版本见 [Releases](https://github.com/vivibibi30/hyperpguard/releases) 与 `docs/RELEASE-<版本>.md`。
+更早版本见 [Releases](https://github.com/zeroedx/fuckPrivacyGuard/releases) 与 `docs/RELEASE-<版本>.md`。
 
 ## 参考来源
 
@@ -262,6 +278,6 @@ GPL-3.0，见 [LICENSE](LICENSE)。
 
 ## English
 
-HyperPGuard is an LSPosed module for HyperOS that blocks telemetry from preinstalled system components — carrier telemetry, cloud app scanning, installer stats, ads, XSOF behaviour queries and silent screen recording — at four stages: data source, local storage, IPC interfaces and network egress. Per-app switches, feature-affecting rules default off. Requires Android 10+, LSPosed 2.2.x and root for restart/log features.
+fuckPrivacyGuard is an LSPosed module for HyperOS that blocks telemetry from preinstalled system components — carrier telemetry, cloud app scanning, installer stats, ads, XSOF behaviour queries and silent screen recording — at four stages: data source, local storage, IPC interfaces and network egress. Per-app switches, feature-affecting rules default off. Requires Android 10+, LSPosed 2.2.x and root for restart/log features.
 
 The settings UI follows the system language: English when the device language is English, Chinese otherwise. Logs and diagnostic text remain Chinese. Personal use only. See [DISCLAIMER.txt](DISCLAIMER.txt). GPL-3.0.

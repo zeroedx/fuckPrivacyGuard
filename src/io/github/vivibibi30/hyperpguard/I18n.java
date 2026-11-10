@@ -286,5 +286,68 @@ final class I18n {
                 "Every outbound request in this process is blocked; host changes do not matter");
         EN.put("发现新版本 v", "New version v");
         EN.put("fxltsbl.com；App 清单 / SIM 标识", "fxltsbl.com — installed apps / SIM identifiers");
+
+        // 2.0 导航与页面
+        EN.put("首页", "Home");
+        EN.put("分类", "Categories");
+        EN.put("搜索", "Search");
+        EN.put("诊断", "Diagnostics");
+        EN.put("设置", "Settings");
+        EN.put("运行状态", "Status");
+        EN.put("LSPosed", "LSPosed");
+        EN.put("框架", "Framework");
+        EN.put("作用域", "Scope");
+        EN.put("组件分组", "Component groups");
+        EN.put("快捷入口", "Quick actions");
+        EN.put("已连接", "Connected");
+        EN.put("未连接", "Not connected");
+        EN.put("未知", "Unknown");
+        EN.put("已开启", "On");
+        EN.put("已关闭", "Off");
+        EN.put("已加入", "In scope");
+        EN.put("未加入", "Not in scope");
+        EN.put("未安装", "Not installed");
+        EN.put("未在作用域，点此加入", "Not in scope, tap to add");
+        EN.put("全部启用", "Enable all");
+        EN.put("全部停用", "Disable all");
+        EN.put("全部重启", "Restart all");
+        EN.put("搜索名称、说明、包名或配置项", "Search name, description, package or config key");
+        EN.put("全部分组", "All groups");
+        EN.put("搜索结果", "Results");
+        EN.put("没有匹配的条目", "No matching entries");
+        EN.put("模块信息", "Module info");
+        EN.put("模块版本", "Module version");
+        EN.put("运行记录", "Runtime records");
+        EN.put("「查看日志」「自检」需要 root", "Viewing logs and self-check need root");
+        EN.put("查看日志", "View log");
+        EN.put("分享日志", "Share log");
+        EN.put("自检", "Self-check");
+        EN.put("清理日志缓冲", "Clear log buffer");
+        EN.put("外观", "Appearance");
+        EN.put("跟随系统", "Follow system");
+        EN.put("浅色", "Light");
+        EN.put("深色", "Dark");
+        EN.put("规则", "Rules");
+        EN.put("日志", "Logs");
+        EN.put("项目", "Project");
+        EN.put("GitHub 仓库", "GitHub repository");
+        EN.put("LSPosed 模块页", "LSPosed module page");
+        EN.put("问题反馈", "Issues");
+        EN.put("上游项目", "Upstream project");
+        EN.put("版本", "Version");
+        EN.put("开源与致谢", "Open source & credits");
+        EN.put("许可证", "License");
+        EN.put("免责声明 / 使用条款", "Disclaimer / Terms");
+        EN.put("隐藏桌面图标", "Hide launcher icon");
+        EN.put("隐藏后从 LSPosed 模块页进入本界面",
+                "After hiding, open this screen from the LSPosed module page");
+        EN.put("「重启」「查看日志」需要 root，首次使用请允许 KernelSU 授权",
+                "Restart and log viewing need root; allow KernelSU on first use");
+        EN.put("本项目基于 vivibibi30/hyperpguard 的 GPL-3.0 源码二次开发，保留原作者版权与出处致谢。",
+                "Based on the GPL-3.0 source of vivibibi30/hyperpguard; original copyright and attribution retained.");
+        EN.put("图标已隐藏，可从 LSPosed 模块页进入",
+                "Icon hidden; open from the LSPosed module page");
+        EN.put("清空日志缓冲；其他应用的日志会一起清掉，配置与截图不受影响",
+                "Clear the whole logcat ring buffer, including other apps; config and screenshots are unaffected");
     }
 }

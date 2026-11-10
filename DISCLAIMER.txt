@@ -1,4 +1,4 @@
-隐私上报拦截（HyperPGuard）免责声明
+隐私上报拦截（fuckPrivacyGuard）免责声明
 版本 1.14
 ========================================
 
@@ -95,7 +95,7 @@ English Summary
 This summary is provided for convenience only. If there is any ambiguity or
 conflict, the Chinese text above prevails.
 ----------------------------------------
-HyperPGuard is a personal privacy tool for Android devices you own and fully
+fuckPrivacyGuard is a personal privacy tool for Android devices you own and fully
 control. It blocks preinstalled system components from transmitting device and
 usage data to vendor or carrier servers.
 

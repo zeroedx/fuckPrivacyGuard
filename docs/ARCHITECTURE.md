@@ -30,8 +30,19 @@ MsaHooks.java      MSA 使用画像与 OneTrack
 AnalyticsHooks.java 统计方法层
 Hooks.java         公共 hook 工具
 PgSwitch.java      设置页开关（自绘，点击可由外部接管）
-Logs.java          统一日志标签 HyperPGuard
-MainActivity.java  设置界面（程序化构建，无 layout 资源）
+Logs.java          统一日志标签 fuckPrivacyGuard
+Ui.java            自绘界面件（色板 / 卡片 / 开关行 / 弹窗着色）
+Catalog.java       分组与子项的唯一来源（13 组 / 59 项）
+Page.java          页面基类
+HomePage.java      首页：状态 / 总开关 / 批量操作
+CategoriesPage.java 分类：分组卡片与子项开关
+SearchPage.java    搜索：按名称 / 说明 / 包名 / Key 过滤
+DiagnosticsPage.java 诊断：作用域 / 运行记录 / 自检
+SettingsPage.java  设置：通用 / 外观 / 规则 / 日志
+AboutPage.java     关于：品牌 / 链接 / 致谢 / 许可
+Dialogs.java       自定义规则 / 行为库 / 日志 / 免责声明 / 更新
+ModuleState.java   LSPosed 连接、作用域与 root 命令
+MainActivity.java  宿主：导航 / 滚动 / Insets / 深浅色 / LSPosed 连接（无 layout 资源）
 ```
 
 ## 三、新增一个组件分组
@@ -41,7 +52,7 @@ MainActivity.java  设置界面（程序化构建，无 layout 资源）
 1. **`META-INF/xposed/scope.list`**：加包名。staticScope 模块，覆盖安装后需要在 LSPosed 里重新确认作用域，旧进程不会自动补注入
 2. **`Config.java`**：加分组开关 `K_G_X` 与子项常量；默认值写在使用处（`Config.on(K, true/false)`），不落盘
 3. **`HookEntry.dispatch()`**：加 `if ("包名".equals(pkg)) { ... }` 分支，先按分组开关 return，再调各层
-4. **`MainActivity.GROUPS`**：加 `Group` 与 `Item`，文案过 `T()`；同时在 `I18n.java` 补英文
+4. **`Catalog.GROUPS`**：加 `Group` 与 `Item`，文案过 `T()`；同时在 `I18n.java` 补英文
 5. **`docs/RULES.md`**：写清判据（域名 / 方法签名 / 表名）与默认开关的理由
 6. **验证**：`sh build.sh` → 装到设备 → 在 LSPosed 确认作用域 → 看 `attach <包>` 与对应 `hook ok` / `X(host)` 日志
 
@@ -56,9 +67,9 @@ MainActivity.java  设置界面（程序化构建，无 layout 资源）
 
 ## 五、界面约定
 
-- 色板集中在 `MainActivity.applyPalette()`：浅色 `#F2F3F5/#FFFFFF/#1A1A1A/#8A8A8E/#EFEFF0`，深色 `#000000/#1C1C1E/#FFFFFF/#8E8E93/#2C2C2E`
+- 色板集中在 `Ui.palette()`：浅色 `#F2F3F5/#FFFFFF/#1A1A1A/#8A8A8E/#EFEFF0`，深色 `#000000/#1C1C1E/#FFFFFF/#8E8E93/#2C2C2E`；页面用 `new XxxPage(host, ui)` 取色，深浅色切换时随 `MainActivity.buildUi()` 一起重建
 - 可点条目统一用 `pressBackground()`（浅色 `#E5E5E5`、深色 `#3A3A3C`），文字保持强调色
-- 弹窗统一走 `showStyled()` / `trackDialog()`，保证深色与切换主题时就地换色
+- 弹窗统一走 `Dialogs` + `Ui.styleDialog()` / `MainActivity.trackDialog()`，保证深色与切换主题时就地换色
 - 开关用 `PgSwitch`；需要「等外部确认再切换」时用 `setOnToggleRequest()`，自身不翻转
 - 行规格：标题 17sp、副标题 14sp、行高 56dp、卡片圆角 20dp、分组标题 14sp/35dp
 
@@ -66,10 +77,10 @@ MainActivity.java  设置界面（程序化构建，无 layout 资源）
 
 ```sh
 sh build.sh          # javac --release 11 → d8 → aapt2 link → zipalign → apksigner
-git tag -a vX.Y.Z -m "HyperPGuard X.Y.Z"
+git tag -a vX.Y.Z -m "fuckPrivacyGuard X.Y.Z"
 git push origin main vX.Y.Z
 ```
 
 CI 在 tag 上做三件事：构建 APK、源码仓建 Release、同步到分发仓（tag 为 `<versionCode>-<versionName>`）。发版前先在 `docs/RELEASE-<版本>.md` 写好正文，否则 CI 会失败。
 
-不引入第三方依赖：注入的 dex 现在只含 libxposed service 一项必需组件，加库会直接放大 13 个进程的注入开销。
+界面全部自绘（native Java View），不引入 UI 库；注入的 dex 现在只含 libxposed service 一项必需组件，加库会直接放大 13 个进程的注入开销。引入新依赖前先评估这份开销。

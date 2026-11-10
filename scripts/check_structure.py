@@ -12,8 +12,12 @@ def read(p):
 
 cfg = read('src/io/github/vivibibi30/hyperpguard/Config.java')
 manifest = read('AndroidManifest.xml')
-main = read('src/io/github/vivibibi30/hyperpguard/MainActivity.java')
 scope = read('META-INF/xposed/scope.list')
+
+# 界面代码已模块化：分组表在 Catalog.java，页面各自成文件。
+# 一致性检查改为扫描整个 src/，不依赖某个具体文件。
+src_dir = root / 'src'
+main = '\n'.join(p.read_text(encoding='utf-8') for p in src_dir.rglob('*.java'))
 
 # 1) 版本号一致
 ver = re.search(r'VERSION\s*=\s*"([^"]+)"', cfg)
@@ -30,13 +34,13 @@ if a != b:
 # 3) scope.list 里的包都能在界面里找到
 for pkg in [l.strip() for l in scope.splitlines() if l.strip()]:
     if f'"{pkg}"' not in main:
-        problems.append(f'scope.list 里的 {pkg} 在 MainActivity 的 GROUPS 中没有对应条目')
+        problems.append(f'scope.list 里的 {pkg} 在 Catalog 的 GROUPS 中没有对应条目')
 
 # 4) 分组开关都在界面里用到
 groups = re.findall(r'String (K_G_[A-Z0-9_]+)\s*=\s*"([^"]+)"', cfg)
 for name, key in groups:
     if f'Config.{name}' not in main:
-        problems.append(f'Config.{name}（{key}）没有在 MainActivity 中使用')
+        problems.append(f'Config.{name}（{key}）没有在界面代码（Catalog / 页面）中使用')
 
 # 5) scope.list 内容提示
 pkgs = [l for l in scope.splitlines() if l.strip()]

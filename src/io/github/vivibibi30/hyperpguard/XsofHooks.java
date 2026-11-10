@@ -29,11 +29,18 @@ final class XsofHooks {
         try {
             Class<?> prov = Class.forName("com.xiaomi.security.xsof.XSOFProvider", false, cl);
             Hooks.allByName(m, prov, "query", chain -> {
+                Hooks.noteHit(chain, "xsof query");
                 if (XSOF_HIT.compareAndSet(false, true)) Logs.i("xsof query blocked (first)");
                 return new android.database.MatrixCursor(new String[]{"_id"});
             });
-            Hooks.allByName(m, prov, "call", chain -> new Bundle());
-            Hooks.allByName(m, prov, "insert", chain -> null);
+            Hooks.allByName(m, prov, "call", chain -> {
+                Hooks.noteHit(chain, "xsof call");
+                return new Bundle();
+            });
+            Hooks.allByName(m, prov, "insert", chain -> {
+                Hooks.noteHit(chain, "xsof insert");
+                return null;
+            });
             Logs.i("xsof provider hooked");
         } catch (Throwable t) {
             Logs.i("xsof provider miss: " + t);
@@ -59,6 +66,7 @@ final class XsofHooks {
                 if (pts.length < 2) continue;
                 if (!pts[pts.length - 1].getName().contains("IMiSafetyDetectCallback")) continue;
                 m.hook(method).intercept(chain -> {
+                    Hooks.noteHit(chain, "xsof aidl");
                     Object cb = chain.getArg(chain.getArgs().size() - 1);
                     if (cb != null) {
                         try {
@@ -119,7 +127,10 @@ final class XsofHooks {
             int ok = 0;
             for (Method method : writes) {
                 try {
-                    m.hook(method).intercept(chain -> null);
+                    m.hook(method).intercept(chain -> {
+                        Hooks.noteHit(chain, "xsof db write");
+                        return null;
+                    });
                     ok++;
                 } catch (Throwable ignored) {
                 }
@@ -174,7 +185,10 @@ final class XsofHooks {
             }
             if (!hit) continue;
             try {
-                m.hook(method).intercept(chain -> null);
+                m.hook(method).intercept(chain -> {
+                    Hooks.noteHit(chain, "xsof db write");
+                    return null;
+                });
                 n++;
             } catch (Throwable ignored) {
             }
@@ -222,7 +236,10 @@ final class XsofHooks {
                 }
                 if (!hit) continue;
                 try {
-                    m.hook(method).intercept(chain -> Float.valueOf(0f));
+                    m.hook(method).intercept(chain -> {
+                        Hooks.noteHit(chain, "xsof score");
+                        return Float.valueOf(0f);
+                    });
                     n++;
                     Logs.i("xsof score " + name + "#" + method.getName());
                 } catch (Throwable ignored) {

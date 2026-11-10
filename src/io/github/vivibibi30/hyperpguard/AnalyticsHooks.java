@@ -15,17 +15,18 @@ final class AnalyticsHooks {
 
     void install(ClassLoader cl) {
         Hooks.ret(m, cl, "com.miui.analytics.onetrack.p.u", "w",
-                new Class<?>[]{long.class, long.class}, null);
+                new Class<?>[]{long.class, long.class}, null, "analytics p.u#w");
         Hooks.ret(m, cl, "com.miui.analytics.c.f.k", "y",
-                new Class<?>[]{long.class, long.class}, null);
+                new Class<?>[]{long.class, long.class}, null, "analytics c.f.k#y");
         Hooks.ret(m, cl, "com.miui.analytics.onetrack.q.c", "a",
-                new Class<?>[]{android.content.Context.class}, Integer.valueOf(0));
+                new Class<?>[]{android.content.Context.class}, Integer.valueOf(0),
+                "analytics q.c#a");
         Hooks.ret(m, cl, "com.miui.analytics.onetrack.q.c", "b",
-                new Class<?>[]{android.content.Context.class}, "NONE");
+                new Class<?>[]{android.content.Context.class}, "NONE", "analytics q.c#b");
         Hooks.ret(m, cl, "com.miui.analytics.onetrack.q.c", "c",
-                new Class<?>[0], Boolean.FALSE);
+                new Class<?>[0], Boolean.FALSE, "analytics q.c#c");
         Hooks.ret(m, cl, "com.miui.analytics.d.f.n", "y",
-                new Class<?>[]{long.class, long.class}, null);
+                new Class<?>[]{long.class, long.class}, null, "analytics d.f.n#y");
         scanUsageMethods(cl);
     }
 
@@ -85,7 +86,10 @@ final class AnalyticsHooks {
                     if (p.length != 2 || p[0] != long.class || p[1] != long.class) continue;
                     if (ret != org.json.JSONObject.class) continue;
                     try {
-                        m.hook(method).intercept(chain -> null);
+                        m.hook(method).intercept(chain -> {
+                            Hooks.noteHit(chain, "analytics usage");
+                            return null;
+                        });
                         hooked++;
                     } catch (Throwable t) {
                         failed++;

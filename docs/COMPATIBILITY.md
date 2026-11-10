@@ -19,16 +19,27 @@
 | `minSdkVersion` / `targetSdkVersion` | 29 / 34 | `AndroidManifest.xml`、`build.sh` |
 | 作用域 | `staticScope=true`，13 个包（见 `META-INF/xposed/scope.list`） | `META-INF/xposed/module.prop`、`META-INF/xposed/scope.list` |
 
-## 二、Android 17 / SDK 37 的状态（待设备验证）
+## 二、Android 17 / SDK 37 的状态
 
-**Android 17 / SDK 37 尚未完成专项适配，也未在真机上验证。** 本仓库当前：
+本节严格区分两件事：
 
-- 编译使用 android-35 的平台 jar，`targetSdkVersion` 为 34；
-- 声明支持范围止于 Android 16（见上表）；
-- 已用 **真实的 android-37.0 平台 jar** 静态核对了被 hook 的公开方法签名（见下节），
-  但这只是「签名存在性」的源码级证据，**不是真机行为验证**。
+- **源码适配**：本仓库源码 / 构建配置里能直接核对、并已针对 Android 17 做过处理的部分。
+  属于「源码确认」。
+- **真机验证**：需要目标机型（Xiaomi 17 / HyperOS 4）的运行时日志或组件产物才能确认的部分。
+  本仓库目前**没有**这类证据，一律标为「待设备验证」。
 
-因此，**在 Android 17 / HyperOS 4 上的实际拦截效果未知**，下列事项都需要在目标机型上核对后才能下结论：
+**结论：源码适配已做（见下），真机验证未做。** 在 Android 17 / HyperOS 4 上的实际拦截效果仍然未知。
+
+### 2.1 源码适配（源码确认）
+
+- 编译仍使用 android-35 的平台 jar，`targetSdkVersion` 为 34；声明支持范围止于 Android 16。
+- 已用**真实的 android-37.0 平台 jar** 静态核对被 hook 的公开方法签名，并把
+  旧版本上不存在、新版本新增的重载按「反射取类、取不到就跳过」的方式做了兼容
+  （见 2.2、2.3）。这只是「签名存在性」的源码级证据，**不是真机行为验证**。
+- 短信发送 hook 不再写死某一个重载，改为按签名谓词匹配（见 2.3），
+  Android 10–17 上存在的每个发送重载都会命中。
+
+### 2.2 仍需真机验证的项
 
 - 目标组件在 Android 17 / HyperOS 4 上的实际调用链、类名与方法签名；
 - 方法层里按混淆名或按包名前缀定位的 hook（如 `c.d.a.*`）是否仍然命中；
@@ -36,7 +47,7 @@
 - 反射使用的隐藏 API（`dalvik.system.BaseDexClassLoader` 的 `pathList` / `dexElements`、`android.app.ActivityThread` 的相关字段与方法、`android.app.LoadedApk#makeApplication`）在新版本上是否仍可用；
 - LSPosed 在 Android 17 上对 libxposed API 102 的支持情况。
 
-**本模块不宣称已经完整兼容 Android 17。**
+**本模块不宣称已经完整兼容 Android 17；源码适配不等于真机验证通过。**
 
 ### 应用清单 Hook 的跨版本签名核对（源码确认）
 
@@ -62,6 +73,36 @@
 `NoClassDefFoundError`（`javap` 已确认编译产物里 flags 类型只作为字符串常量出现，
 没有 `.class` 字面量）。
 
+### 短信发送签名的跨版本核对（源码确认）
+
+`SmsManager` 的发送入口**不再写死重载**，改为按「方法名 + 参数结构 + void 返回」的
+签名谓词（`Hooks.isSmsSend`）匹配。旧代码写死了三个重载，且参数个数 / 类型与 AOSP 不符
+（`getDeclaredMethod` 抛 `NoSuchMethodException`，整段静默失效）；现在每个真实存在的重载
+都会被命中。下表用 `javap` 在对应平台 jar 上核对：
+
+| API | `sendTextMessage(String,String,String,PI,PI[,long])` | `sendMultipartTextMessage` | `sendDataMessage(String,String,short,byte[],PI,PI)` |
+|---|---|---|---|
+| 29（Android 10） | 存在（5 参） | 存在（`ArrayList` 5 参） | 存在 |
+| 32（Android 12L） | 存在（5 / 6 参） | 存在（`ArrayList` 5 参、`List` 6 / 7 参） | 存在 |
+| 33（Android 13） | 存在（5 / 6 参） | 存在 | 存在 |
+| 35（Android 15） | 存在（5 / 6 参） | 存在 | 存在 |
+| 36（Android 16） | 存在（5 / 6 参） | 存在 | 存在 |
+| 37（Android 17） | 存在（5 / 6 参） | 存在 | 存在 |
+
+`PI` = `android.app.PendingIntent`。谓词还覆盖 `sendTextMessageWithoutPersisting`。
+核对项由 `sh scripts/check_hooks.sh`（设置 `ANDROID_JAR`）自动执行。
+
+### 使用记录查询重载的跨版本核对（源码确认）
+
+`UsageStatsManager` 自 **API 35（Android 15）** 起新增 `queryEvents(UsageEventsQuery)` 重载，
+走这条入口的调用方会绕过 `queryEvents(long, long)`。代码用反射取 `UsageEventsQuery` 类，
+取不到（< 35）就只挂旧重载：
+
+| API | `queryEvents(long,long)` | `queryEvents(UsageEventsQuery)` |
+|---|---|---|
+| 29 / 32 / 33 | 存在 | 不存在（旧系统） |
+| 35 / 36 / 37 | 存在 | 存在 |
+
 ## 三、已覆盖的拦截能力（源码确认）
 
 拦截分四层，彼此独立；某一层失配不影响其余层。
@@ -78,11 +119,14 @@
 ### 隐私 API（`PrivacyApis.java`）
 
 - 应用清单：`ApplicationPackageManager#getInstalledPackages` / `getInstalledApplications` 的
-  `int` 与 `PackageInfoFlags` / `ApplicationInfoFlags` 两组重载，均返回空表
-- 使用记录：`UsageStatsManager#queryEvents`、`queryUsageStats`
+  `int` 与 `PackageInfoFlags` / `ApplicationInfoFlags` 两组重载，均返回空表；
+  SystemHelper 现已一并挂上标准应用清单入口（此前只拦厂商上报出口）
+- 使用记录：`UsageStatsManager#queryEvents`（`(long,long)` 与 API 35+ 的
+  `(UsageEventsQuery)` 两个重载）、`queryUsageStats`
 - 设备标识：`TelephonyManager`（含 `miui.telephony` 两个扩展类）的 IMEI / MEID / IMSI / ICCID、
   `WifiInfo#getMacAddress`、`getLine1Number*`、`Build#getSerial`、`Settings.Secure` 的 `android_id`
-- 短信发送：`SmsManager#sendTextMessage` / `sendMultipartTextMessage` / `sendDataMessage`
+- 短信发送：`SmsManager#sendTextMessage` / `sendTextMessageWithoutPersisting` /
+  `sendMultipartTextMessage` / `sendDataMessage` 的**全部重载**（按签名谓词匹配，非写死重载）
 - 位置 / 基站 / Wi-Fi：`LocationManager`、`TelephonyManager` 小区接口、`WifiManager#getScanResults`、
   `WifiInfo#getSSID` / `getBSSID`（**默认关闭**，按应用单独开启）
 - 通讯录 / 通话 / 短信读取：`ContentResolver#query` 对 `call_log` / `sms` / `mms` / `contacts` 返回空
@@ -118,16 +162,21 @@
 | `? <tag> <host>` | 「记录未拦截访问」记录：访问未被拦截 |
 
 `hook ok` 只表示 hook 已安装，**不代表该进程实际走到了该调用点**；是否命中看 `hit` 行。
-`hit` 行按「类名#方法名(参数类型)」去重（可选带语义标签前缀，如 `applist`、`db write`），
-同一方法的不同重载各记一条，高频调用不会刷屏。
+`hit` 行按「类名#方法名(参数类型)」去重（可选带语义标签前缀，如 `applist`、`db write`、
+`sms`、`xsof query`、`msa track`、`analytics usage`），同一方法的不同重载各记一条，
+高频调用不会刷屏。方法层（XSOF / MSA / 统计）与 SystemHelper 的拦截回调里也会调用
+`noteHit`，因此「安装成功」与「实际被调用」在日志里是两条不同的行。
 
 ### 可重复执行的自查（源码确认）
 
 - `sh tests/run.sh`：纯 JVM 单元测试，覆盖 `noteHit` 的首次命中去重、去重键含类名/方法名/
-  参数签名、不记录实参内容，以及多线程并发去重；不需要设备或 SDK。
+  参数签名、不记录实参内容，以及多线程并发去重；另含 `Hooks.isSmsSend` 的签名谓词测试
+  （覆盖 Android 10–17 上存在的每个短信发送重载，并验证旧代码写错的签名被正确排除）。
+  不需要设备或 SDK。
 - `sh scripts/check_hooks.sh`：静态核对 Hook 注册与默认开关；设置 `ANDROID_JAR` 后
-  额外用 `javap` 校验签名在目标平台 jar 里真实存在。无法判定的项（未设 `ANDROID_JAR`、
-  拿不到真实 API 级别、找不到 `javap`）记为 `SKIP`，不计入通过。
+  额外用 `javap` 校验签名在目标平台 jar 里真实存在（含应用清单、短信发送、使用记录三类）。
+  无法判定的项（未设 `ANDROID_JAR`、拿不到真实 API 级别、找不到 `javap`）记为 `SKIP`，
+  不计入通过。
 
 
 ## 四、尚未覆盖或尚未验证的能力
@@ -138,6 +187,8 @@
 
 - **Native / HAL 数据路径**：所有 hook 都在 Java 层。使用 native 网络栈（Cronet、WebView 等）、
   直接读 `/proc` / sysfs / HAL 的路径不受影响。
+- **NIO / SocketChannel 出口**：网络层只 hook 了 `java.net.Socket` 与 `java.net.URL`；
+  `java.nio.channels.SocketChannel#connect` 等 NIO 出口未覆盖（默认走阻塞 `Socket` 的调用不受影响）。
 - **Binder / AIDL 数据出口**：没有针对 `ContentResolver#call`、`IBinder`、`Parcel` 或
   `IPackageManager` 的通用 hook。跨进程代发（组件把数据交给另一个进程再统一上报）不在覆盖内。
 - **麦克风**：没有 `AudioRecord` / `MediaRecorder` / `AudioManager` 相关 hook。

@@ -239,6 +239,62 @@ final class Hooks {
         }
     }
 
+    /**
+     * SmsManager 发送入口的签名判定。
+     *
+     * 按「方法名 + 参数结构 + void 返回」判定，而不是写死某一个重载，
+     * 这样 Android 10–17 上存在的每个重载都能命中，也不会再因为签名写错而整段失效。
+     * 覆盖的真实签名：
+     *   sendTextMessage / sendTextMessageWithoutPersisting
+     *       (String, String, String, PendingIntent, PendingIntent[, long])
+     *   sendMultipartTextMessage
+     *       (String, String, ArrayList, ArrayList, ArrayList)
+     *       (String, String, List, List, List, long)
+     *       (String, String, List, List, List, String, String)
+     *   sendDataMessage
+     *       (String, String, short, byte[], PendingIntent, PendingIntent)
+     *
+     * 类型用类名字符串比较而不是类字面量：既跨类加载器稳定，也让本方法能在
+     * 离线单测里用替身类验证（见 tests/src 的 HooksSmsSignatureTest）。
+     */
+    static boolean isSmsSend(String name, Class<?>[] p, Class<?> ret) {
+        if (ret != void.class) return false;
+        if (name == null || p == null || p.length < 5) return false;
+        if (!isNamed(p[0], "java.lang.String") || !isNamed(p[1], "java.lang.String")) return false;
+        switch (name) {
+            case "sendTextMessage":
+            case "sendTextMessageWithoutPersisting":
+                if (p.length != 5 && p.length != 6) return false;
+                if (!isNamed(p[2], "java.lang.String")) return false;
+                if (!isPendingIntent(p[3]) || !isPendingIntent(p[4])) return false;
+                return p.length == 5 || p[5] == long.class;
+            case "sendMultipartTextMessage":
+                if (p.length != 5 && p.length != 6 && p.length != 7) return false;
+                if (!isListType(p[2]) || !isListType(p[3]) || !isListType(p[4])) return false;
+                if (p.length == 5) return p[2] == java.util.ArrayList.class;
+                if (p.length == 6) return p[5] == long.class;
+                return isNamed(p[5], "java.lang.String") && isNamed(p[6], "java.lang.String");
+            case "sendDataMessage":
+                if (p.length != 6) return false;
+                if (p[2] != short.class || p[3] != byte[].class) return false;
+                return isPendingIntent(p[4]) && isPendingIntent(p[5]);
+            default:
+                return false;
+        }
+    }
+
+    private static boolean isNamed(Class<?> c, String name) {
+        return c != null && name.equals(c.getName());
+    }
+
+    private static boolean isPendingIntent(Class<?> c) {
+        return isNamed(c, "android.app.PendingIntent");
+    }
+
+    private static boolean isListType(Class<?> c) {
+        return c != null && java.util.List.class.isAssignableFrom(c);
+    }
+
     private static Object defaultValue(Class<?> t) {
         if (t == null || !t.isPrimitive()) return null;
         if (t == boolean.class) return Boolean.FALSE;

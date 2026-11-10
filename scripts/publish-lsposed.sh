@@ -4,7 +4,7 @@
 set -e
 
 DIST_REPO=${DIST_REPO:-Xposed-Modules-Repo/io.github.vivibibi30.hyperpguard}
-APK=${1:-HyperPGuard.apk}
+APK=${1:-fuckPrivacyGuard.apk}
 [ -f "$APK" ] || { echo "找不到 $APK" >&2; exit 1; }
 
 BADGING=$(aapt2 dump badging "$APK")
@@ -17,7 +17,7 @@ NOTES="docs/RELEASE-$NAME.md"
 [ -f "$NOTES" ] || NOTES="docs/RELEASE.md"
 [ -f "$NOTES" ] || { echo "缺少发布说明 $NOTES" >&2; exit 1; }
 
-TMP="/tmp/HyperPGuard-$NAME.apk"
+TMP="/tmp/fuckPrivacyGuard-$NAME.apk"
 cp "$APK" "$TMP"
 
 echo "发布 $DIST_REPO  版本 $NAME ($CODE)  tag=$TAG"

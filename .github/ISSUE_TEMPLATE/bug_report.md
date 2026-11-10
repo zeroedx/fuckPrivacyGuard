@@ -35,7 +35,7 @@ assignees: ''
 
 <!--
 模块内：「自检」+「查看日志」→「分享」；或
-  su -c "logcat -d -v time | grep -E 'HyperPGuard: |blocked by HyperPGuard'"
+  su -c "logcat -d -v time | grep -E 'fuckPrivacyGuard: |blocked by fuckPrivacyGuard'"
 
 只贴相关部分，先脱敏：IMEI / IMSI / ICCID / 手机号 / 账号 / 路径里的用户名。
 Redact identifiers before posting. Do not upload vendor APKs or decompiled output (see CONTRIBUTING).

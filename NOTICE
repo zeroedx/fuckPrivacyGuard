@@ -1,7 +1,11 @@
-HyperPGuard
-Copyright (C) 2026 vivibibi30
+fuckPrivacyGuard
+Copyright (C) 2026 zeroedx
+基于 HyperPGuard（Copyright (C) 2026 vivibibi30）二次开发
 
-本项目的 Java 源码以 GPL-3.0 发布，完整条款见 LICENSE。
+本项目的 Java 源码以 GPL-3.0 发布，完整条款见 LICENSE。原始项目 HyperPGuard 的
+版权、出处与 GPL-3.0 授权一并保留，详见 README 的「致谢」与「许可」一节。
+
+上游项目：https://github.com/vivibibi30/hyperpguard
 
 第三方组件（编译期依赖，未修改）：
 

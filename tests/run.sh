@@ -19,16 +19,19 @@ mkdir -p "$OUT"
 echo "[1/2] javac (module under test + stubs + tests)"
 "$JAVAC" -encoding UTF-8 -nowarn -cp libs/libxposed-api.jar -d "$OUT" \
     tests/stub/android/util/Log.java \
+    tests/stub/android/app/PendingIntent.java \
     tests/stub/dalvik/system/DexFile.java \
     src/io/github/vivibibi30/hyperpguard/Logs.java \
     src/io/github/vivibibi30/hyperpguard/Hooks.java \
     tests/src/io/github/vivibibi30/hyperpguard/HooksNoteHitTest.java \
-    tests/src/io/github/vivibibi30/hyperpguard/HooksNoteHitConcurrencyTest.java
+    tests/src/io/github/vivibibi30/hyperpguard/HooksNoteHitConcurrencyTest.java \
+    tests/src/io/github/vivibibi30/hyperpguard/HooksSmsSignatureTest.java
 
 echo "[2/2] run"
 rc=0
 "$JAVA" -cp "$OUT:libs/libxposed-api.jar" io.github.vivibibi30.hyperpguard.HooksNoteHitTest || rc=1
 "$JAVA" -cp "$OUT:libs/libxposed-api.jar" io.github.vivibibi30.hyperpguard.HooksNoteHitConcurrencyTest || rc=1
+"$JAVA" -cp "$OUT:libs/libxposed-api.jar" io.github.vivibibi30.hyperpguard.HooksSmsSignatureTest || rc=1
 [ "$rc" -eq 0 ] || exit 1
 
 echo "OK -> tests passed"
