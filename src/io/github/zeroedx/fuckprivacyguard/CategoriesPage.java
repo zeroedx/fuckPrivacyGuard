@@ -46,6 +46,17 @@ final class CategoriesPage extends Page {
         }
         root.addView(card);
 
+        /* 批量操作：原先在首页，首页移除后移到这里，功能不变 */
+        root.addView(ui.sectionRow(Ui.T("批量操作"), Ui.T("对整个作用域生效")));
+        LinearLayout bulkCard = ui.card();
+        LinearLayout bulk = ui.row();
+        bulk.setPadding(0, ui.dp(8), 0, ui.dp(8));
+        bulk.addView(host.bulkButton(Ui.T("全部启用"), host::requestAll));
+        bulk.addView(host.bulkButton(Ui.T("全部停用"), host::removeAll));
+        bulk.addView(host.bulkButton(Ui.T("全部重启"), host::restartAll));
+        bulkCard.addView(bulk);
+        root.addView(bulkCard);
+
         TextView tip = ui.text(Ui.T("开关改动后需重启目标进程才生效"), 12, ui.sub);
         tip.setPadding(ui.dp(4), ui.dp(2), ui.dp(4), 0);
         root.addView(tip);

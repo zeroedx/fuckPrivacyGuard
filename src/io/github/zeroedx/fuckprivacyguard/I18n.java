@@ -299,17 +299,13 @@ final class I18n {
         EN.put("发现新版本 v", "New version v");
         EN.put("fxltsbl.com；App 清单 / SIM 标识", "fxltsbl.com — installed apps / SIM identifiers");
 
-        // 2.0 导航与页面
-        EN.put("首页", "Home");
+        // 2.0 导航与页面（2.1.1 起移除首页，默认进入分类页）
         EN.put("分类", "Categories");
         EN.put("诊断", "Diagnostics");
         EN.put("设置", "Settings");
-        EN.put("运行状态", "Status");
         EN.put("LSPosed", "LSPosed");
         EN.put("框架", "Framework");
         EN.put("作用域", "Scope");
-        EN.put("组件分组", "Component groups");
-        EN.put("快捷入口", "Quick actions");
         EN.put("已连接", "Connected");
         EN.put("未连接", "Not connected");
         EN.put("未知", "Unknown");
@@ -379,5 +375,14 @@ final class I18n {
                 "Icon hidden; open from the LSPosed module page");
         EN.put("清空日志缓冲；其他应用的日志会一起清掉，配置与截图不受影响",
                 "Clear the whole logcat ring buffer, including other apps; config and screenshots are unaffected");
+
+        // 2.1.1 分类页批量操作 + 关于页
+        EN.put("批量操作", "Bulk actions");
+        EN.put("对整个作用域生效", "Applies to the whole scope");
+        EN.put("HyperOS 预装组件隐私拦截", "Privacy blocking for HyperOS preinstalled components");
+        EN.put("版本信息", "Version");
+        EN.put("包名", "Package name");
+        EN.put("维护者", "Maintainer");
+        EN.put("原作者 / 上游项目", "Original author / upstream");
     }
 }

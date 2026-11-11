@@ -31,7 +31,8 @@ import io.github.libxposed.service.XposedServiceHelper;
 /**
  * 宿主 Activity：负责导航、滚动、Insets、深浅色与 LSPosed 连接。
  *
- * 具体页面各自成类（{@link HomePage} 等），本类不再堆叠界面代码。
+ * 具体页面各自成类（{@link CategoriesPage} 等），本类不再堆叠界面代码。
+ * 默认页为分类页，底部导航保留分类 / 诊断 / 设置 / 关于四项。
  * 拦截逻辑、配置协议、作用域操作与 root 通道保持与原实现一致。
  */
 public class MainActivity extends Activity {
@@ -39,8 +40,8 @@ public class MainActivity extends Activity {
     private static final String TAG = "fuckPrivacyGuard";
     private static final String LAUNCHER_ALIAS = "io.github.zeroedx.fuckprivacyguard.Launcher";
     private static final int DISCLAIMER_VER = 14;
-    /** 分类页在底部导航中的下标；组件二级页挂在该页下 */
-    private static final int TAB_CATEGORIES = 1;
+    /** 分类页在底部导航中的下标；它是默认页，组件二级页也挂在该页下 */
+    private static final int TAB_CATEGORIES = 0;
 
     private Ui ui;
     private Dialogs dialogs;
@@ -223,7 +224,6 @@ public class MainActivity extends Activity {
     private void buildUi() {
         // 页面与色板绑定，深浅色变化时随 buildUi 一起重建
         pages = new Page[]{
-                new HomePage(this, ui),
                 new CategoriesPage(this, ui),
                 new DiagnosticsPage(this, ui),
                 new SettingsPage(this, ui),

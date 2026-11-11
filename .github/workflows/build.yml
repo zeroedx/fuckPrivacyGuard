@@ -131,6 +131,14 @@ jobs:
       - name: Build
         run: sh build.sh
 
+      # 记录构建产物指纹：同步到 LSPosed 前后都要比对，确保分发件与构建件逐字节一致
+      - name: Compute APK SHA-256
+        run: |
+          set -e
+          SHA=$(sha256sum fuckPrivacyGuard.apk | awk '{print $1}')
+          echo "APK_SHA256=$SHA" >> "$GITHUB_ENV"
+          echo "built APK sha256: $SHA"
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
@@ -138,13 +146,15 @@ jobs:
           path: fuckPrivacyGuard.apk
           if-no-files-found: error
 
-      # 推 tag（v1.0.1 这种）时自动建 Release：正文取 docs/RELEASE-<tag>.md，附件是构建出的 APK
-      - name: Pick release notes
+      # 发布元数据：从 tag 推版本号、选择发布说明、生成带版本的资产名
+      # 发布统一走 `v*` tag（如 v2.1.1），一次完成「主仓 Release → 校验 → LSPosed 同步」
+      - name: Prepare release metadata
+        id: meta
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           set -e
           T="${GITHUB_REF_NAME#v}"
-          # 兼容 LSPosed 仓库要求的 <versionCode>-<versionName> 形式，例如 4-1.1.1
+          # 兼容 LSPosed 要求的 <versionCode>-<versionName> 形式，例如 72-2.1.1
           V="$T"
           case "$T" in
             [0-9]*-*) V="${T#*-}" ;;
@@ -157,43 +167,162 @@ jobs:
             echo "找不到 docs/RELEASE-${V}.md 或 docs/RELEASE.md" >&2
             exit 1
           fi
-          echo "RELEASE_BODY=$F" >> "$GITHUB_ENV"
-          echo "RELEASE_VER=$V" >> "$GITHUB_ENV"
-          echo "release notes: $F (version $V)"
+          ASSET="fuckPrivacyGuard-${V}.apk"
+          cp fuckPrivacyGuard.apk "$ASSET"
+          {
+            echo "RELEASE_BODY=$F"
+            echo "RELEASE_VER=$V"
+            echo "RELEASE_ASSET=$ASSET"
+            echo "MAIN_REPO=zeroedx/fuckPrivacyGuard"
+          } >> "$GITHUB_ENV"
+          echo "release notes: $F (version $V, asset $ASSET)"
 
-      # 同步到 LSPosed 分发仓库（tag 必须是 versionCode-versionName）
-      - name: Publish to LSPosed repo
-        if: startsWith(github.ref, 'refs/tags/')
-        env:
-          GH_TOKEN: ${{ secrets.LSPOSED_TOKEN }}
-        run: |
-          if [ -z "$GH_TOKEN" ]; then
-            echo "未配置 LSPOSED_TOKEN，跳过"
-            exit 0
-          fi
-          DIST=io.github.zeroedx.fuckprivacyguard
-          gh api "repos/Xposed-Modules-Repo/$DIST" >/dev/null 2>&1 \
-            || { echo "分发仓未就绪，跳过"; exit 0; }
-          CODE=$("$AAPT2" dump badging fuckPrivacyGuard.apk | sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p" | head -1)
-          NAME=$("$AAPT2" dump badging fuckPrivacyGuard.apk | sed -n "s/.*versionName='\([^']*\)'.*/\1/p" | head -1)
-          TAG="$CODE-$NAME"
-          NOTES="docs/RELEASE-$NAME.md"
-          [ -f "$NOTES" ] || NOTES="docs/RELEASE.md"
-          cp fuckPrivacyGuard.apk "/tmp/fuckPrivacyGuard-$NAME.apk"
-          REPO="Xposed-Modules-Repo/$DIST"
-          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
-            gh release delete-asset "$TAG" "fuckPrivacyGuard-$NAME.apk" --repo "$REPO" --yes 2>/dev/null || true
-            gh release upload "$TAG" "/tmp/fuckPrivacyGuard-$NAME.apk" --repo "$REPO"
-          else
-            gh release create "$TAG" "/tmp/fuckPrivacyGuard-$NAME.apk" --repo "$REPO" \
-              --title "$NAME" --notes-file "$NOTES"
-          fi
-
-      - name: Publish Release
+      # 发布顺序第 1 步：主仓 Release（仅 v* tag）。附件用带版本的资产名。
+      - name: Publish main repo Release
+        id: main_release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           name: fuckPrivacyGuard ${{ env.RELEASE_VER }}
           body_path: ${{ env.RELEASE_BODY }}
-          files: fuckPrivacyGuard.apk
+          files: ${{ env.RELEASE_ASSET }}
           fail_on_unmatched_files: true
+
+      # 发布顺序第 2 步：下载主仓 Release 的 APK 并校验 SHA-256（必须与构建件逐字节一致）
+      - name: Verify main repo Release APK
+        id: verify_main
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          rm -rf /tmp/main-verify && mkdir -p /tmp/main-verify
+          gh release download "$GITHUB_REF_NAME" --repo "$MAIN_REPO" \
+            --pattern "$RELEASE_ASSET" --dir /tmp/main-verify --clobber
+          GOT=$(sha256sum "/tmp/main-verify/$RELEASE_ASSET" | awk '{print $1}')
+          if [ "$GOT" != "$APK_SHA256" ]; then
+            echo "::error::主仓 Release APK SHA-256 与构建件不一致：$GOT != $APK_SHA256"
+            exit 1
+          fi
+          echo "MAIN_RELEASE_OK=true" >> "$GITHUB_ENV"
+          echo "主仓 Release 校验通过：$RELEASE_ASSET sha256=$GOT"
+
+      # 发布顺序第 3 步：同步到 LSPosed 分发仓。
+      # 必须复用「主仓 Release 的原始 APK」，且 SHA-256 与构建件一致；不满足则跳过。
+      # 授权判定不采信 permissions.push：安装令牌以「安装覆盖仓库列表」为准，
+      # 细粒度 PAT 才回退到仓库 permissions.push。
+      - name: Sync to LSPosed dist repo
+        id: sync_lsposed
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.LSPOSED_TOKEN }}
+        run: |
+          set -e
+          if [ "${MAIN_RELEASE_OK:-}" != "true" ]; then
+            echo "::warning::主仓 Release 未发布或未通过校验，跳过 LSPosed 同步（发布请使用 v* tag）"
+            exit 0
+          fi
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::未配置 LSPOSED_TOKEN，跳过 LSPosed 同步（主仓已发布）"
+            exit 0
+          fi
+          DIST=io.github.zeroedx.fuckprivacyguard
+          REPO="Xposed-Modules-Repo/$DIST"
+          if ! gh api "repos/$REPO" >/dev/null 2>&1; then
+            echo "::warning::LSPosed 分发仓不存在或不可读，跳过同步"
+            exit 0
+          fi
+          # ---- 授权判定（只读，不做写探针）----
+          AUTH=""
+          INSTALLS=$(gh api /user/installations --jq '.installations[].id' 2>/dev/null || true)
+          if [ -n "$INSTALLS" ]; then
+            # GitHub App 安装令牌：以安装覆盖的仓库列表为准
+            for iid in $INSTALLS; do
+              if gh api "/user/installations/$iid/repositories" --paginate \
+                   --jq '.repositories[].full_name' 2>/dev/null | grep -qxF "$REPO"; then
+                AUTH="installation $iid"
+                break
+              fi
+            done
+            if [ -z "$AUTH" ]; then
+              echo "::warning::令牌为 GitHub App 安装令牌，但其安装范围不含 $REPO；跳过同步。请把该仓库加入 App 安装范围（或改用具备该仓 contents:write + releases:write 的令牌）。"
+              exit 0
+            fi
+          else
+            # 非安装令牌（细粒度 PAT）：此时 permissions.push 才可信
+            PUSH=$(gh api "repos/$REPO" --jq '.permissions.push // false' 2>/dev/null || echo false)
+            if [ "$PUSH" != "true" ]; then
+              echo "::warning::令牌对 $REPO 无 push 权限，跳过同步"
+              exit 0
+            fi
+            AUTH="pat permissions.push"
+          fi
+          echo "授权确认（$AUTH）"
+          # ---- 复用主仓 Release 的原始 APK ----
+          SRC="/tmp/main-verify/$RELEASE_ASSET"
+          [ -f "$SRC" ] || { echo "::error::找不到主仓 Release 的 APK：$SRC" >&2; exit 1; }
+          LOCAL_SHA=$(sha256sum "$SRC" | awk '{print $1}')
+          if [ "$LOCAL_SHA" != "$APK_SHA256" ]; then
+            echo "::error::待同步 APK 与构建件 SHA-256 不一致：$LOCAL_SHA != $APK_SHA256"
+            exit 1
+          fi
+          CODE=$("$AAPT2" dump badging "$SRC" | sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p" | head -1)
+          NAME=$("$AAPT2" dump badging "$SRC" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p" | head -1)
+          TAG="$CODE-$NAME"
+          NOTES="docs/RELEASE-$NAME.md"
+          [ -f "$NOTES" ] || NOTES="docs/RELEASE.md"
+          cp "$SRC" "/tmp/lsposed-$NAME.apk"
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            gh release delete-asset "$TAG" "fuckPrivacyGuard-$NAME.apk" --repo "$REPO" --yes 2>/dev/null || true
+            gh release upload "$TAG" "/tmp/lsposed-$NAME.apk" --repo "$REPO"
+          else
+            gh release create "$TAG" "/tmp/lsposed-$NAME.apk" --repo "$REPO" \
+              --title "$NAME" --notes-file "$NOTES"
+          fi
+          # 回读分发仓资产并比对，逐字节一致才算同步成功
+          rm -rf /tmp/lsposed-verify && mkdir -p /tmp/lsposed-verify
+          gh release download "$TAG" --repo "$REPO" \
+            --pattern "fuckPrivacyGuard-$NAME.apk" --dir /tmp/lsposed-verify --clobber
+          REMOTE_SHA=$(sha256sum "/tmp/lsposed-verify/fuckPrivacyGuard-$NAME.apk" | awk '{print $1}')
+          if [ "$LOCAL_SHA" != "$REMOTE_SHA" ]; then
+            echo "::error::分发仓 APK SHA-256 与主仓 Release 不一致：$REMOTE_SHA != $LOCAL_SHA"
+            exit 1
+          fi
+          echo "LSPOSED_SYNCED=true" >> "$GITHUB_ENV"
+          echo "LSPosed 同步校验通过：$TAG sha256=$LOCAL_SHA"
+
+      # 发布结果汇总：主仓成功但分发仓未同步时，明确标记为「部分发布成功」
+      - name: Summarize release result
+        if: always() && startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -e
+          MAIN="${{ steps.main_release.outcome }}"
+          VM="${{ steps.verify_main.outcome }}"
+          LS="${{ steps.sync_lsposed.outcome }}"
+          SYNCED="${LSPOSED_SYNCED:-false}"
+          echo "main_release=$MAIN verify_main=$VM sync_lsposed=$LS lsposed_synced=$SYNCED"
+          {
+            echo "## 发布结果"
+            echo ""
+            echo "| 环节 | 结果 |"
+            echo "|---|---|"
+            echo "| 主仓 Release | ${MAIN:-skipped} |"
+            echo "| 主仓 APK 校验 | ${VM:-skipped} |"
+            echo "| LSPosed 分发仓同步 | ${LS:-skipped}（写入确认：$SYNCED） |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$MAIN" = "success" ] && [ "$VM" = "success" ] && [ "$SYNCED" != "true" ]; then
+            echo "::warning::部分发布成功：主仓 Release 已发布并通过校验，但 LSPosed 分发仓未同步"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "> **部分发布成功**：主仓 Release 已发布，LSPosed 分发仓**未**同步（原因见上方日志）。" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$MAIN" = "success" ] && [ "$SYNCED" = "true" ]; then
+            echo "双仓发布成功"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "> 双仓发布成功：主仓 Release 与 LSPosed 分发仓均已发布，且 SHA-256 一致。" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$MAIN" = "success" ] && [ "$VM" != "success" ]; then
+            echo "::error::主仓 Release 已发布，但附件 SHA-256 校验未通过，请人工核查"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "> **异常**：主仓 Release 已发布，但附件校验失败，需人工核查；分发仓未同步。" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "> 发布未完成：主仓 Release 未成功发布。" >> "$GITHUB_STEP_SUMMARY"
+          fi
