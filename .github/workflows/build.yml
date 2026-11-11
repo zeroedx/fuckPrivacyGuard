@@ -269,12 +269,14 @@ jobs:
           echo "主仓 Release 校验通过：$RELEASE_ASSET sha256=$GOT"
 
       # 发布顺序第 3 步：同步到 LSPosed 分发仓。
-      # 必须复用「主仓 Release 的原始 APK」，且 SHA-256 与构建件一致；不满足则跳过。
+      # 默认关闭：仅当仓库变量 ENABLE_LSPOSED_SYNC == 'true' 时才执行；
+      # 未设置或不为 true 时整步跳过，不会调用分发仓 API，也不创建 Tag/Release/上传。
+      # 执行时必须复用「主仓 Release 的原始 APK」，且 SHA-256 与构建件一致；不满足则跳过。
       # 授权判定不采信 permissions.push：安装令牌以「安装覆盖仓库列表」为准，
       # 细粒度 PAT 才回退到仓库 permissions.push。
       - name: Sync to LSPosed dist repo
         id: sync_lsposed
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') && vars.ENABLE_LSPOSED_SYNC == 'true'
         env:
           GH_TOKEN: ${{ secrets.LSPOSED_TOKEN }}
         run: |
@@ -367,16 +369,19 @@ jobs:
           echo "LSPOSED_SYNCED=true" >> "$GITHUB_ENV"
           echo "LSPosed 同步校验通过：$TAG sha256=$LOCAL_SHA"
 
-      # 发布结果汇总：主仓成功但分发仓未同步时，明确标记为「部分发布成功」
+      # 发布结果汇总：区分「同步已禁用 / 同步成功 / 同步失败」三种情况
       - name: Summarize release result
         if: always() && startsWith(github.ref, 'refs/tags/')
+        env:
+          ENABLE_LSPOSED_SYNC: ${{ vars.ENABLE_LSPOSED_SYNC }}
         run: |
           set -e
           MAIN="${{ steps.main_release.outcome }}"
           VM="${{ steps.verify_main.outcome }}"
           LS="${{ steps.sync_lsposed.outcome }}"
           SYNCED="${LSPOSED_SYNCED:-false}"
-          echo "main_release=$MAIN verify_main=$VM sync_lsposed=$LS lsposed_synced=$SYNCED"
+          GATE="${ENABLE_LSPOSED_SYNC:-false}"
+          echo "main_release=$MAIN verify_main=$VM sync_lsposed=$LS lsposed_synced=$SYNCED gate=$GATE"
           {
             echo "## 发布结果"
             echo ""
@@ -384,16 +389,20 @@ jobs:
             echo "|---|---|"
             echo "| 主仓 Release | ${MAIN:-skipped} |"
             echo "| 主仓 APK 校验 | ${VM:-skipped} |"
-            echo "| LSPosed 分发仓同步 | ${LS:-skipped}（写入确认：$SYNCED） |"
+            echo "| LSPosed 分发仓同步 | ${LS:-skipped}（开关：$GATE，写入确认：$SYNCED） |"
           } >> "$GITHUB_STEP_SUMMARY"
-          if [ "$MAIN" = "success" ] && [ "$VM" = "success" ] && [ "$SYNCED" != "true" ]; then
-            echo "::warning::部分发布成功：主仓 Release 已发布并通过校验，但 LSPosed 分发仓未同步"
+          if [ "$MAIN" = "success" ] && [ "$VM" = "success" ] && [ "$GATE" != "true" ]; then
+            echo "主仓发布成功；LSPosed 同步已禁用（ENABLE_LSPOSED_SYNC 未设为 true）"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "> **部分发布成功**：主仓 Release 已发布，LSPosed 分发仓**未**同步（原因见上方日志）。" >> "$GITHUB_STEP_SUMMARY"
-          elif [ "$MAIN" = "success" ] && [ "$SYNCED" = "true" ]; then
+            echo "> **主仓发布成功**：LSPosed 分发仓同步**已禁用**（未设置仓库变量 \`ENABLE_LSPOSED_SYNC=true\`），符合默认行为。" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$MAIN" = "success" ] && [ "$VM" = "success" ] && [ "$SYNCED" = "true" ]; then
             echo "双仓发布成功"
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "> 双仓发布成功：主仓 Release 与 LSPosed 分发仓均已发布，且 SHA-256 一致。" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$MAIN" = "success" ] && [ "$VM" = "success" ] && [ "$GATE" = "true" ] && [ "$SYNCED" != "true" ]; then
+            echo "::warning::部分发布成功：主仓 Release 已发布并通过校验，但 LSPosed 分发仓未同步（开关已开启）"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "> **部分发布成功**：主仓 Release 已发布，LSPosed 分发仓**未**同步（原因见上方日志）。" >> "$GITHUB_STEP_SUMMARY"
           elif [ "$MAIN" = "success" ] && [ "$VM" != "success" ]; then
             echo "::error::主仓 Release 已发布，但附件 SHA-256 校验未通过，请人工核查"
             echo "" >> "$GITHUB_STEP_SUMMARY"
