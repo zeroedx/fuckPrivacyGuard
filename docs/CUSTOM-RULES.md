@@ -90,10 +90,11 @@ X(host+path) api.example.com/track/v1
 
 ## 七、存储位置
 
-- 界面写入 `SharedPreferences`（键 `custom_rules`），同时同步到 `Settings.Global` 的 `fuckprivacyguard_conf`，值经过 URL 编码；
-- 目标进程启动时只读 `fuckprivacyguard_conf`，本地偏好只是界面自己的副本；
-- 清除模块数据不会让规则失效：`fuckprivacyguard_conf` 里那份还在，界面会回落到它读回来。要真正清掉，用界面「清空」按钮；
-- 如果界面显示条数为 0 但确认添加过，检查 `fuckprivacyguard_conf` 里是否还有 `custom_rules=` 这一项。
+- 界面写入 `SharedPreferences`（键 `custom_rules`），同时把整份配置推到 LSPosed 的 RemotePreferences（分组 `fuckprivacyguard_conf`，键 `wire`，值经过 URL 编码）；全程不需要 root；
+- 目标进程启动时经同一 RemotePreferences 通道读取，本地偏好只是界面自己的副本；
+- 清除模块数据不会让规则失效：通道里那份还在，界面会回落到它读回来。要真正清掉，用界面「清空」按钮；
+- 如果界面显示条数为 0 但确认添加过，检查 LSPosed 通道（`fuckprivacyguard_conf`）里是否还有 `custom_rules=` 这一项；
+- 从旧版本升级时，首次读取会回落一次旧的 `Settings.Global`（`fuckprivacyguard_conf`），新配置不再写入该系统设置。
 
 ## 八、常见问题
 

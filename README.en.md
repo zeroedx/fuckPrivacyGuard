@@ -113,9 +113,13 @@ Network and method layers are independent: when obfuscated class names change, d
 |---|---|
 | ![brand](docs/images/brand-icon.png) | ![cards](docs/images/ui-cards.png) |
 
-Since 2.0 the UI is six pages behind a bottom navigation bar: Home (status / master switch / bulk actions), Categories (13 component groups), Search (filter by name, description, package or config key), Diagnostics (scope / runtime records / self-check), Settings (general / appearance / rules / logs) and About (links / credits / license).
+Since 2.1 the UI has five pages behind a bottom navigation bar: Home (status / master switch / bulk actions), Categories (the 13 component groups listed by system component — tap one to open its switches), Diagnostics (scope / runtime records / self-check), Settings (general / appearance / rules / logs) and About (links / credits / license).
 
-Dark mode follows the system; the night palette is pure black with `#1C1C1E` cards. Appearance can also be pinned to Light or Dark in Settings.
+Each Categories row shows the component name, package, install state and scope state; components that are not installed are still listed and marked "not installed", never shown as protected. Inside a component's detail page the top-right switch is that app's LSPosed scope switch; items are dimmed while the app is out of scope.
+
+The visual design follows HyperCeiler's module UI (design reference only — none of its AGPL code or assets are copied): the bottom bar is icon + label with the selected item highlighted; component rows carry the real app icon (a letter badge when unavailable) and a status chip; every page has a common large title; cards have a subtle stroke and consistent radius and spacing; the scope switch is separated from the privacy feature switches.
+
+Dark mode follows the system; the night palette is pure black with `#1A1A1C` cards. Appearance can also be pinned to Light or Dark in Settings. All icons are self-drawn; no new dependency is added.
 
 ## Build
 
@@ -145,7 +149,8 @@ EXPECT_SHA256=<64-hex cert fingerprint>  # guard against the wrong key
 ```
 src/io/github/zeroedx/fuckprivacyguard/
 ├── HookEntry.java       entry point, dispatch per package
-├── Config.java          switches and config channel
+├── Config.java          switches and config channel (LSPosed RemotePreferences, no root)
+├── ConfigWire.java      config wire codec (`k=v|k=v`, compatible with the old format)
 ├── I18n.java            UI strings (Chinese source, English lookup)
 ├── NetGuard.java        URL / InetAddress / Socket + rule matching
 ├── PrivacyApis.java     app list, usage stats, identifiers, SMS, XMSF
@@ -155,6 +160,7 @@ src/io/github/zeroedx/fuckprivacyguard/
 ├── AnalyticsHooks.java  analytics method layer
 ├── Hooks.java           shared hook helpers
 ├── Logs.java            unified log tag
+├── PgIcon.java          self-drawn vector icons and letter badges
 ├── PgSwitch.java        MIUI-style switch used by the settings UI
 └── MainActivity.java    settings UI
 ```
@@ -162,7 +168,7 @@ src/io/github/zeroedx/fuckprivacyguard/
 ## Limitations
 
 - Domain lists can be incomplete: addresses can be delivered from server config
-- Switches left at their default value are not written into `fuckprivacyguard_conf`; a missing key does not mean the switch is off
+- Switches left at their default value are not written into the config channel; a missing key does not mean the switch is off
 - Obfuscated class names change between versions; `hook miss` in the log is expected and does not affect the network layer
 - Requests made through native stacks (Cronet and friends) are not covered by Java-level hooks
 - `IMrm` is a HAL-level service; only the `ServiceManager` side is disconnected

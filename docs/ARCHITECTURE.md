@@ -20,7 +20,8 @@
 
 ```
 HookEntry.java     入口；onPackageReady 后按包名分发到各层
-Config.java        开关常量、配置通道（Settings.Global 的 fuckprivacyguard_conf）
+Config.java        开关常量、配置通道（LSPosed RemotePreferences，无 root）
+ConfigWire.java    配置编解码（`k=v|k=v`，与旧格式兼容）
 I18n.java          界面英文查表（中文是唯一来源，查不到原样返回）
 NetGuard.java      网络层与规则匹配
 PrivacyApis.java   隐私 API 层
@@ -29,14 +30,15 @@ XsofHooks.java     XSOF 四层 + MRM
 MsaHooks.java      MSA 使用画像与 OneTrack
 AnalyticsHooks.java 统计方法层
 Hooks.java         公共 hook 工具
+PgIcon.java        自绘矢量图标与字符徽标（导航 / 组件图标，无图片资源）
 PgSwitch.java      设置页开关（自绘，点击可由外部接管）
 Logs.java          统一日志标签 fuckPrivacyGuard
-Ui.java            自绘界面件（色板 / 卡片 / 开关行 / 弹窗着色）
+Ui.java            自绘界面件（色板 / 卡片 / 图标 / chip / 开关行 / 弹窗着色）
 Catalog.java       分组与子项的唯一来源（13 组 / 59 项）
 Page.java          页面基类
 HomePage.java      首页：状态 / 总开关 / 批量操作
-CategoriesPage.java 分类：分组卡片与子项开关
-SearchPage.java    搜索：按名称 / 说明 / 包名 / Key 过滤
+CategoriesPage.java 分类：按系统组件列出名称 / 包名 / 安装状态
+ComponentDetailPage.java 组件二级页：单个组件的全部开关 / 重启 / 返回
 DiagnosticsPage.java 诊断：作用域 / 运行记录 / 自检
 SettingsPage.java  设置：通用 / 外观 / 规则 / 日志
 AboutPage.java     关于：品牌 / 链接 / 致谢 / 许可
@@ -67,11 +69,15 @@ MainActivity.java  宿主：导航 / 滚动 / Insets / 深浅色 / LSPosed 连�
 
 ## 五、界面约定
 
-- 色板集中在 `Ui.palette()`：浅色 `#F2F3F5/#FFFFFF/#1A1A1A/#8A8A8E/#EFEFF0`，深色 `#000000/#1C1C1E/#FFFFFF/#8E8E93/#2C2C2E`；页面用 `new XxxPage(host, ui)` 取色，深浅色切换时随 `MainActivity.buildUi()` 一起重建
-- 可点条目统一用 `pressBackground()`（浅色 `#E5E5E5`、深色 `#3A3A3C`），文字保持强调色
+- 色板集中在 `Ui.palette()`：浅色 `#F4F5F7/#FFFFFF/#1A1A1A/#8A8A8E`，深色 `#000000/#1A1A1C/#FFFFFF/#9A9AA0`；卡片带极浅描边（浅色 `#0A000000`、深色 `#14FFFFFF`）用于区分抬升面；页面用 `new XxxPage(host, ui)` 取色，深浅色切换时随 `MainActivity.buildUi()` 一起重建
+- 图标全部自绘（`PgIcon`，24×24 网格描边）：底部导航、返回箭头、组件徽标；组件行优先取真实应用图标，取不到时用字符徽标兜底，不引入任何图片资源或第三方图标库
+- 底部导航为「图标 + 文字」竖排，选中项用强调色 + 浅色底高亮（`navItems` / `navIcons` / `navTabs`）
+- 每个页面用 `ui.pageTitle()` 起一个统一大标题（首页以品牌头图代标题）
+- 状态用 `ui.chip()`：小圆角底 + 彩色文字；未安装组件整行置灰
+- 可点条目统一用 `pressBackground()`，文字保持强调色
 - 弹窗统一走 `Dialogs` + `Ui.styleDialog()` / `MainActivity.trackDialog()`，保证深色与切换主题时就地换色
 - 开关用 `PgSwitch`；需要「等外部确认再切换」时用 `setOnToggleRequest()`，自身不翻转
-- 行规格：标题 17sp、副标题 14sp、行高 56dp、卡片圆角 20dp、分组标题 14sp/35dp
+- 行规格：标题 16sp、副标题 12sp、行高 56dp、卡片圆角 20dp、分组标题 14sp/35dp
 
 ## 六、构建与发布
 

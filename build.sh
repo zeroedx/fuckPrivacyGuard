@@ -135,4 +135,4 @@ ls -la fuckPrivacyGuard.apk
 echo
 echo "更新方式（务必覆盖安装，不要卸载）："
 echo "  adb install -r fuckPrivacyGuard.apk"
-echo "  # 手机上：su -c 'pm install -r /sdcard/Download/fuckPrivacyGuard-2.0.0.apk'"
+echo "  # 手机上：su -c 'pm install -r /sdcard/Download/fuckPrivacyGuard-2.1.0.apk'"

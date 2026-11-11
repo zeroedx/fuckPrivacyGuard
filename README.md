@@ -110,9 +110,15 @@
 |---|---|
 | ![品牌图标](docs/images/brand-icon.png) | ![分组卡片](docs/images/ui-cards.png) |
 
-2.0 起界面改为底部导航的六个页面：首页（状态 / 总开关 / 批量操作）、分类（13 组组件）、搜索（按名称 / 说明 / 包名 / Key 过滤）、诊断（作用域 / 运行记录 / 自检）、设置（通用 / 外观 / 规则 / 日志）、关于（链接 / 致谢 / 许可）。
+2.1 起底部导航为五个页面：首页（状态 / 总开关 / 批量操作）、分类（按系统组件列出 13 组，点进组件查看该组件全部开关）、诊断（作用域 / 运行记录 / 自检）、设置（通用 / 外观 / 规则 / 日志）、关于（链接 / 致谢 / 许可）。
 
-每组右上角就是该应用在 LSPosed 里的作用域开关；组关闭时组内子项置灰且不可点击。
+分类页每项显示组件名称、包名、安装状态与作用域状态；未安装组件照样列出并标注「未安装」，不会显示成正在保护。进入组件二级页面后，右上角就是该组件在 LSPosed 里的作用域开关；未加入作用域时组内子项置灰。
+
+界面视觉参考 HyperCeiler 的模块 UI 重做（仅参考设计，未复制其 AGPL 代码或资源）：底部导航为图标 + 文字，选中项高亮；组件行带真实应用图标（取不到时用字符徽标）与状态 chip；页面统一大标题；卡片加描边并统一圆角与间距；作用域开关与隐私功能开关分区呈现；浅色 / 深色两套色板按 HyperOS 4 习惯调整。图标全部自绘，未引入新依赖。
+
+改版后的设计预览（浅色：首页 / 分类；深色：组件二级页）——**下图为按代码实际色板与尺寸重绘的 HTML 预览，不是真机截图**：
+
+![改版设计预览（HTML 重绘）](docs/images/ui-redesign-preview.png)
 
 ## 日志说明
 
@@ -166,7 +172,8 @@ EXPECT_SHA256=<64 位小写证书指纹>  # 防止用错密钥
 ```
 src/io/github/zeroedx/fuckprivacyguard/
 ├── HookEntry.java      入口与按包分发（XposedModule#onPackageReady）
-├── Config.java         开关常量
+├── Config.java         开关常量与配置通道（LSPosed RemotePreferences，无 root）
+├── ConfigWire.java     配置编解码协议（`k=v|k=v`，与旧格式兼容）
 ├── NetGuard.java       网络出口：URL / InetAddress / Socket + 规则匹配
 ├── PrivacyApis.java    隐私 API：应用列表 / 使用记录 / 标识 / 短信 / XMSF 广播
 ├── CaptureHooks.java   行为库写入与静默录屏
@@ -180,8 +187,9 @@ src/io/github/zeroedx/fuckprivacyguard/
 ├── Catalog.java        分组与子项的唯一来源（13 组 / 59 项）
 ├── Page.java           页面基类
 ├── HomePage.java       首页：状态、总开关、批量操作
-├── CategoriesPage.java 分类：分组卡片与子项开关
-├── SearchPage.java     搜索：按名称 / 说明 / 包名 / Key 过滤
+├── PgIcon.java         自绘矢量图标与字符徽标（导航 / 组件图标）
+├── CategoriesPage.java 分类：按系统组件列出名称 / 包名 / 安装状态
+├── ComponentDetailPage.java 组件二级页：单个组件的全部开关与重启
 ├── DiagnosticsPage.java 诊断：作用域、运行记录、自检
 ├── SettingsPage.java   设置：通用开关、外观、规则、日志
 ├── AboutPage.java      关于：品牌、链接、致谢与许可
@@ -205,7 +213,7 @@ build.sh              一键构建
 ## 适配边界
 
 - 完整的已覆盖 / 未覆盖 / 待验证清单见 [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)
-- 开关保持默认值时不会写进 `fuckprivacyguard_conf`，`settings get` 里缺某个 key 不代表它关闭，以界面状态与日志为准
+- 开关保持默认值时不会写进配置通道，通道里缺某个 key 不代表它关闭，以界面状态与日志为准
 - 域名名单可能漏项：地址可由配置下发；小米统计为整进程断网，SystemHelper 默认只拦上报域名，其余组件依赖隐私 API 层与方法层
 - 方法层类名随组件版本变化，日志里 `hook miss` 属正常，网络层与隐私 API 层不受影响
 - 使用 native 网络栈（Cronet 等）的请求不受 Java 层 hook 影响

@@ -17,7 +17,7 @@ public final class Config {
 
     public static final String PKG = "io.github.zeroedx.fuckprivacyguard";
     public static final String PREFS = "pg";
-    public static final String VERSION = "2.0.0";
+    public static final String VERSION = "2.1.0";
 
     /** RemotePreferences 分组名，沿用旧配置键名，不引入新协议 */
     public static final String REMOTE_GROUP = "fuckprivacyguard_conf";
