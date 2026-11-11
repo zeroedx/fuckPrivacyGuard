@@ -22,15 +22,23 @@ echo "[1/2] javac (module under test + stubs + tests)"
     tests/stub/android/app/PendingIntent.java \
     tests/stub/android/content/Context.java \
     tests/stub/android/content/Intent.java \
+    tests/stub/android/content/ContentResolver.java \
+    tests/stub/android/content/SharedPreferences.java \
+    tests/stub/android/provider/Settings.java \
     tests/stub/android/os/CancellationSignal.java \
     tests/stub/android/app/usage/UsageStatsManager.java \
     tests/stub/dalvik/system/DexFile.java \
     src/io/github/zeroedx/fuckprivacyguard/Logs.java \
     src/io/github/zeroedx/fuckprivacyguard/Hooks.java \
+    src/io/github/zeroedx/fuckprivacyguard/ConfigWire.java \
+    src/io/github/zeroedx/fuckprivacyguard/Config.java \
+    src/io/github/zeroedx/fuckprivacyguard/NetGuard.java \
     tests/src/io/github/zeroedx/fuckprivacyguard/HooksNoteHitTest.java \
     tests/src/io/github/zeroedx/fuckprivacyguard/HooksNoteHitConcurrencyTest.java \
     tests/src/io/github/zeroedx/fuckprivacyguard/HooksSmsSignatureTest.java \
-    tests/src/io/github/zeroedx/fuckprivacyguard/HooksP0ContractTest.java
+    tests/src/io/github/zeroedx/fuckprivacyguard/HooksP0ContractTest.java \
+    tests/src/io/github/zeroedx/fuckprivacyguard/MemoryPrefs.java \
+    tests/src/io/github/zeroedx/fuckprivacyguard/ConfigChannelTest.java
 
 echo "[2/2] run"
 rc=0
@@ -38,6 +46,7 @@ rc=0
 "$JAVA" -cp "$OUT:libs/libxposed-api.jar" io.github.zeroedx.fuckprivacyguard.HooksNoteHitConcurrencyTest || rc=1
 "$JAVA" -cp "$OUT:libs/libxposed-api.jar" io.github.zeroedx.fuckprivacyguard.HooksSmsSignatureTest || rc=1
 "$JAVA" -cp "$OUT:libs/libxposed-api.jar" io.github.zeroedx.fuckprivacyguard.HooksP0ContractTest || rc=1
+"$JAVA" -cp "$OUT:libs/libxposed-api.jar" io.github.zeroedx.fuckprivacyguard.ConfigChannelTest || rc=1
 [ "$rc" -eq 0 ] || exit 1
 
 echo "OK -> tests passed"

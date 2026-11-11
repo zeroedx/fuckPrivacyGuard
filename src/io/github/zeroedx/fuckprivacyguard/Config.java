@@ -6,15 +6,25 @@ import android.content.SharedPreferences;
 /**
  * 配置。
  *
- * UI 侧通过普通 SharedPreferences 读写；hook 侧在新 API 下无法直接读应用私有目录，
- * 因此使用各规则的默认值（与 UI 的默认值一致）。细粒度开关由「应用是否在作用域内」
- * 加默认规则共同决定。
+ * 界面侧写普通 SharedPreferences，再经 LSPosed 的 RemotePreferences 通道把整份配置
+ * 推给各目标进程；hook 侧用同一通道读取。全程不需要 root：写入走框架的 Binder 服务，
+ * 读取同理，不再调用 `su -c settings put`。
+ *
+ * 兼容旧数据：升级前写入的 Settings.Global(`fuckprivacyguard_conf`) 仍会被读取一次
+ * 作为回落，读不到时按各规则的默认值运行。新配置不再写 Settings.Global。
  */
 public final class Config {
 
     public static final String PKG = "io.github.zeroedx.fuckprivacyguard";
     public static final String PREFS = "pg";
     public static final String VERSION = "2.0.0";
+
+    /** RemotePreferences 分组名，沿用旧配置键名，不引入新协议 */
+    public static final String REMOTE_GROUP = "fuckprivacyguard_conf";
+    /** RemotePreferences 里承载整份 `k=v|k=v` 的键 */
+    public static final String REMOTE_KEY = "wire";
+    /** 旧版写入 Settings.Global 的键，仅用于升级后的一次性回落读取 */
+    public static final String GLOBAL_KEY = "fuckprivacyguard_conf";
 
     /* 全局 */
     public static final String K_MASTER = "master";
@@ -145,95 +155,67 @@ public final class Config {
     }
 
     public static void uiSet(Context ctx, String key, boolean v) {
-        SharedPreferences sp = ui(ctx);
-        sp.edit().putBoolean(key, v).apply();
+        uiSetLocal(ctx, key, v);
+        pushAll(ctx);
+    }
+
+    /** 只写本地偏好、不推送；批量改开关时用，最后统一 pushAll 一次 */
+    public static void uiSetLocal(Context ctx, String key, boolean v) {
+        ui(ctx).edit().putBoolean(key, v).apply();
         invalidateCache();
-        syncOut(ctx, sp, key);
     }
 
     /**
-     * 把开关写进 Settings.Global 的一个自定义 key，目标进程读它。
+     * 把整份配置推到 LSPosed 的 RemotePreferences，目标进程经同一通道读取。
      *
-     * 以 Settings 里已有的键值打底，再叠加本地偏好与本次改动：
-     * 本地偏好被清理过时，不会把其余开关一起冲成默认值。
+     * 以通道里已有的值打底，再叠加本地偏好：本地偏好被清理过时，不会把其余开关
+     * 一起冲成默认值。通道不可用（LSPosed 未连接 / 框架不支持）时不写入，只留日志，
+     * 由界面在连接后重推一次。
      */
-    private static void syncOut(Context ctx, SharedPreferences sp, String changed) {
+    public static void pushAll(Context ctx) {
+        SharedPreferences remote = REMOTE;
+        if (remote == null) {
+            Logs.i("config push skipped: remote channel unavailable");
+            return;
+        }
         java.util.LinkedHashMap<String, String> map = new java.util.LinkedHashMap<>();
-        String cur = null;
         try {
-            cur = android.provider.Settings.Global.getString(
-                    ctx.getContentResolver(), GLOBAL_KEY);
+            map.putAll(ConfigWire.decode(remote.getString(REMOTE_KEY, null)));
         } catch (Throwable t) {
-            Logs.i("config read before sync fail: " + t);
+            Logs.i("config push base read fail: " + t);
         }
-        if (cur != null && !cur.isEmpty()) {
-            for (String kv : cur.split("\\|")) {
-                int i = kv.indexOf('=');
-                if (i <= 0) continue;
-                String k = kv.substring(0, i).trim();
-                String val = kv.substring(i + 1).trim();
-                map.put(k, K_CUSTOM.equals(k) ? urlDecode(val) : val);
-            }
-        }
-        for (java.util.Map.Entry<String, ?> e : sp.getAll().entrySet()) {
+        for (java.util.Map.Entry<String, ?> e : ui(ctx).getAll().entrySet()) {
             Object v = e.getValue();
             if (v instanceof Boolean) map.put(e.getKey(), String.valueOf(v));
             else if (v instanceof String) map.put(e.getKey(), (String) v);
         }
-        Object localChanged = sp.getAll().get(changed);
-        map.put(changed, localChanged instanceof String
-                ? (String) localChanged : String.valueOf(sp.getBoolean(changed, false)));
-
-        final StringBuilder sb = new StringBuilder();
-        for (java.util.Map.Entry<String, String> e : map.entrySet()) {
-            String val = e.getValue();
-            if (K_CUSTOM.equals(e.getKey())) {
-                if (val == null || val.isEmpty()) continue;
-                val = urlEncode(val);
-            }
-            if (sb.length() > 0) sb.append('|');
-            sb.append(e.getKey()).append('=').append(val);
-        }
-        if (sb.length() == 0) return;
-        final String dump = sb.toString();
+        String wire = ConfigWire.encode(map);
+        if (wire == null) return;
+        // 用 commit 而非 apply：改完开关后马上重启目标进程时，确保通道里已是新值
+        final SharedPreferences target = remote;
         new Thread(() -> {
-            Process p = null;
             try {
-                p = Runtime.getRuntime().exec(new String[]{"su", "-c",
-                        "settings put global " + GLOBAL_KEY + " '" + dump + "'"});
-                p.waitFor();
+                target.edit().putString(REMOTE_KEY, wire).commit();
             } catch (Throwable t) {
-                Logs.i("config sync fail: " + t);
-            } finally {
-                if (p != null) try { p.destroy(); } catch (Throwable ignored) { }
+                Logs.i("config push fail: " + t);
             }
-        }, "fuckprivacyguard-config-sync").start();
+        }, "fuckprivacyguard-config-push").start();
     }
 
-    /** 界面读取开关：本地没有时回落到 Settings，清过数据也不会显示成默认值 */
+    /** 界面读取开关：本地没有时回落到通道，清过数据也不会显示成默认值 */
     public static boolean get(Context ctx, String key, boolean def) {
         SharedPreferences sp = ui(ctx);
         if (sp.contains(key)) return sp.getBoolean(key, def);
-        Boolean remote = fallback(ctx).get(key);
+        Boolean remote = fallback().get(key);
         return remote != null ? remote : def;
     }
 
-    /** Settings 里的整表，只在本地缺键时载入一次 */
-    private static java.util.Map<String, Boolean> fallback(Context ctx) {
+    /** 通道里的整表，只在本地缺键时载入一次 */
+    private static java.util.Map<String, Boolean> fallback() {
         if (FALLBACK != null) return FALLBACK;
         java.util.LinkedHashMap<String, Boolean> map = new java.util.LinkedHashMap<>();
-        try {
-            String v = android.provider.Settings.Global.getString(
-                    ctx.getContentResolver(), GLOBAL_KEY);
-            if (v != null && !v.isEmpty()) {
-                for (String kv : v.split("\\|")) {
-                    int i = kv.indexOf('=');
-                    if (i <= 0) continue;
-                    map.put(kv.substring(0, i).trim(), "true".equals(kv.substring(i + 1).trim()));
-                }
-            }
-        } catch (Throwable t) {
-            Logs.i("config fallback fail: " + t);
+        for (java.util.Map.Entry<String, String> e : readWire().entrySet()) {
+            map.put(e.getKey(), "true".equals(e.getValue()));
         }
         FALLBACK = map;
         return FALLBACK;
@@ -249,89 +231,100 @@ public final class Config {
         FALLBACK = null;
     }
 
+    /* ---------------- 非 root 配置通道 ---------------- */
+
+    /** 通道句柄：UI 侧来自 XposedService，hook 侧来自 XposedInterface；未绑定时为 null */
+    private static volatile SharedPreferences REMOTE;
+
+    /**
+     * 绑定通道句柄；两端都实现 {@link SharedPreferences}（RemotePreferences）。
+     * 传 null 表示通道断开，之后按旧版 Settings.Global 回落或默认值运行。
+     */
+    public static void bindRemote(SharedPreferences prefs) {
+        REMOTE = prefs;
+        invalidateCache();
+    }
+
+    public static SharedPreferences remote() {
+        return REMOTE;
+    }
+
+    /** 读通道里的整份配置；未绑定或为空时返回空表 */
+    private static java.util.Map<String, String> readWire() {
+        SharedPreferences remote = REMOTE;
+        if (remote == null) return java.util.Collections.emptyMap();
+        try {
+            String wire = remote.getString(REMOTE_KEY, null);
+            if (wire != null && !wire.isEmpty()) return ConfigWire.decode(wire);
+        } catch (Throwable t) {
+            Logs.i("config remote read fail: " + t);
+        }
+        return java.util.Collections.emptyMap();
+    }
+
+    /**
+     * 旧版 Settings.Global 回落（只读）。升级到本版本后新配置不再写这里，
+     * 读到的是升级前最后一次写入的值；读不到按默认值。
+     */
+    private static java.util.Map<String, String> readLegacyGlobal(android.content.Context ctx) {
+        if (ctx == null) return java.util.Collections.emptyMap();
+        try {
+            String v = android.provider.Settings.Global.getString(
+                    ctx.getContentResolver(), GLOBAL_KEY);
+            if (v == null || v.isEmpty()) return java.util.Collections.emptyMap();
+            return ConfigWire.decode(v);
+        } catch (Throwable t) {
+            Logs.i("config legacy read fail: " + t);
+            return java.util.Collections.emptyMap();
+        }
+    }
+
     /* ---------------- Hook 侧 ---------------- */
 
     public static boolean masterOn() {
         return on(K_MASTER, true);
     }
 
-    /** 唯一的对外写入：Settings.Global 下的一个自定义 key */
-    public static final String GLOBAL_KEY = "fuckprivacyguard_conf";
-
     /** hook 侧读到的开关，进程内缓存一份，读不到就用各规则的默认值 */
-    private static final java.util.Map<String, Boolean> REMOTE =
+    private static final java.util.Map<String, Boolean> REMOTE_VALUES =
             new java.util.concurrent.ConcurrentHashMap<>();
 
     /**
-     * 目标进程读取界面开关：查询本应用的只读 provider。
-     * 不写文件、不写系统设置，查询失败时按默认值运行。
+     * 目标进程加载界面开关：先读 RemotePreferences 通道，为空时读一次旧版
+     * Settings.Global 作为升级回落。都读不到就按默认值运行。全程不写文件、不调 root。
      */
     public static void load(android.content.Context ctx) {
-        load(ctx, null);
+        if (!REMOTE_VALUES.isEmpty() || !CUSTOM.isEmpty()) return;
+
+        java.util.Map<String, String> wire = readWire();
+        if (wire.isEmpty()) wire = readLegacyGlobal(ctx);
+
+        for (java.util.Map.Entry<String, String> e : wire.entrySet()) {
+            if (K_CUSTOM.equals(e.getKey())) CUSTOM = e.getValue();
+            else REMOTE_VALUES.put(e.getKey(), "true".equals(e.getValue()));
+        }
+        Logs.i(REMOTE_VALUES.isEmpty() ? "config loaded: 0 (defaults)"
+                : "config loaded: " + REMOTE_VALUES.size());
     }
 
-    /**
-     * pkg 用于系统 Context 读配置被 AMS 拒绝时，换成该包自己的 Context 再读一次。
-     * 系统 Context 的包名是 android，uid 与包名不一致会被 provider 拒。
-     */
+    /** 兼容旧调用点：RemotePreferences 不经 ContentResolver 鉴权，无需再按包名重读 */
     public static void load(android.content.Context ctx, String pkg) {
-        if (!REMOTE.isEmpty() || !CUSTOM.isEmpty()) return;
-        if (ctx != null) loadFromSettings(ctx);
-        if (REMOTE.isEmpty() && ctx != null && pkg != null) {
-            try {
-                loadFromSettings(ctx.createPackageContext(pkg, 0));
-            } catch (Throwable t) {
-                Logs.i("config pkg ctx fail: " + t);
-            }
-        }
-        Logs.i(REMOTE.isEmpty() ? "config loaded: 0 (defaults)"
-                : "config loaded: " + REMOTE.size());
-    }
-
-    private static void loadFromSettings(android.content.Context ctx) {
-        try {
-            String v = android.provider.Settings.Global.getString(
-                    ctx.getContentResolver(), GLOBAL_KEY);
-            if (v == null || v.isEmpty()) return;
-            for (String kv : v.split("\\|")) {
-                int i = kv.indexOf('=');
-                if (i <= 0) continue;
-                String k = kv.substring(0, i).trim();
-                String val = kv.substring(i + 1).trim();
-                if (K_CUSTOM.equals(k)) CUSTOM = urlDecode(val);
-                else REMOTE.put(k, "true".equals(val));
-            }
-        } catch (Throwable t) {
-            Logs.i("config read fail: " + t);
-        }
+        load(ctx);
     }
 
     public static void setCustomRules(Context ctx, String rules) {
         SharedPreferences sp = ui(ctx);
         sp.edit().putString(K_CUSTOM, rules).apply();
         invalidateCache();
-        syncOut(ctx, sp, K_CUSTOM);
+        pushAll(ctx);
     }
 
-    /** 界面读取：本地优先，被清过时回落到 Settings 里的同一份配置 */
+    /** 界面读取：本地优先，被清过时回落到通道里的同一份配置 */
     public static String customRulesRaw(Context ctx) {
         String v = ui(ctx).getString(K_CUSTOM, "");
         if (v != null && !v.isEmpty()) return v;
-        try {
-            String all = android.provider.Settings.Global.getString(
-                    ctx.getContentResolver(), GLOBAL_KEY);
-            if (all != null) {
-                for (String kv : all.split("\\|")) {
-                    int i = kv.indexOf('=');
-                    if (i > 0 && K_CUSTOM.equals(kv.substring(0, i).trim())) {
-                        return urlDecode(kv.substring(i + 1).trim());
-                    }
-                }
-            }
-        } catch (Throwable t) {
-            Logs.i("custom rules read fail: " + t);
-        }
-        return "";
+        String r = readWire().get(K_CUSTOM);
+        return r != null ? r : "";
     }
 
     /** hook 侧解析：域名 或 域名/路径 */
@@ -363,28 +356,12 @@ public final class Config {
         return out;
     }
 
-    private static String urlEncode(String s) {
-        try {
-            return java.net.URLEncoder.encode(s, "UTF-8");
-        } catch (Throwable t) {
-            return s;
-        }
-    }
-
-    private static String urlDecode(String s) {
-        try {
-            return java.net.URLDecoder.decode(s, "UTF-8");
-        } catch (Throwable t) {
-            return s;
-        }
-    }
-
     public static int size() {
-        return REMOTE.size();
+        return REMOTE_VALUES.size();
     }
 
     public static boolean on(String key, boolean fallback) {
-        Boolean v = REMOTE.get(key);
+        Boolean v = REMOTE_VALUES.get(key);
         return v == null ? fallback : v;
     }
 

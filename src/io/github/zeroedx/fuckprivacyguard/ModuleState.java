@@ -49,6 +49,25 @@ final class ModuleState {
         return xposed != null;
     }
 
+    /**
+     * UI 侧的配置通道：LSPosed 的 RemotePreferences。框架不支持或未连接时返回 null，
+     * 由调用方按「通道不可用」处理，不伪造。
+     */
+    android.content.SharedPreferences remotePrefs() {
+        if (xposed == null) return null;
+        try {
+            long caps = xposed.getFrameworkProperties();
+            if ((caps & XposedService.PROP_CAP_REMOTE) == 0) {
+                Logs.i("remote prefs unsupported, caps=" + caps);
+                return null;
+            }
+            return xposed.getRemotePreferences(Config.REMOTE_GROUP);
+        } catch (Throwable t) {
+            Logs.i("remote prefs unavailable: " + t);
+            return null;
+        }
+    }
+
     String framework() {
         if (xposed == null) return null;
         try {

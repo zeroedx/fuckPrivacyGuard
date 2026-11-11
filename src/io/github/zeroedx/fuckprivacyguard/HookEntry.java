@@ -24,7 +24,29 @@ public class HookEntry extends XposedModule {
 
     @Override
     public void onModuleLoaded(XposedModuleInterface.ModuleLoadedParam param) {
+        bindConfigChannel();
         Logs.i("module loaded: " + param.getProcessName());
+    }
+
+    /**
+     * 绑定非 root 配置通道（LSPosed RemotePreferences）。
+     *
+     * 框架不支持远程偏好或绑定失败时置空，后续按旧版 Settings.Global 回落或默认值运行，
+     * 不会静默保留一条失效链路。目标进程每次启动都会重新绑定，因此重启后读到的是最新配置。
+     */
+    private void bindConfigChannel() {
+        try {
+            long caps = getFrameworkProperties();
+            if ((caps & io.github.libxposed.api.XposedInterface.PROP_CAP_REMOTE) == 0) {
+                Logs.i("remote prefs unsupported, caps=" + caps);
+                Config.bindRemote(null);
+                return;
+            }
+            Config.bindRemote(getRemotePreferences(Config.REMOTE_GROUP));
+        } catch (Throwable t) {
+            Logs.i("bind remote prefs fail: " + t);
+            Config.bindRemote(null);
+        }
     }
 
     private final java.util.concurrent.atomic.AtomicBoolean dispatched =
@@ -60,6 +82,8 @@ public class HookEntry extends XposedModule {
                 Logs.i("hot reload unhook fail: " + t);
             }
         }
+        // 新类加载器里的 Config 是全新的静态状态，onModuleLoaded 不会重放，必须重新绑定通道
+        bindConfigChannel();
         android.app.Application app = currentApplication();
         if (app == null) {
             Logs.i("hot reload: no Application in " + param.getProcessName());
