@@ -174,9 +174,13 @@ def main():
     main_act = read("MainActivity.java")
     check("nav: 搜索页文件已删除",
           not os.path.exists(os.path.join(SRC, "SearchPage.java")))
-    check("nav: 底部导航为 5 项且不含搜索",
+    check("nav: 首页文件已删除（2.1.1 起移除首页）",
+          not os.path.exists(os.path.join(SRC, "HomePage.java")))
+    check("nav: 底部导航为 4 项（分类 / 诊断 / 设置 / 关于），不含首页与搜索",
           re.findall(r'new (\w+Page)\(this, ui\)', main_act)
-          == ["HomePage", "CategoriesPage", "DiagnosticsPage", "SettingsPage", "AboutPage"])
+          == ["CategoriesPage", "DiagnosticsPage", "SettingsPage", "AboutPage"])
+    check("nav: 默认页为分类页（TAB_CATEGORIES = 0）",
+          re.search(r'TAB_CATEGORIES\s*=\s*0\b', main_act) is not None)
     check("nav: 组件二级页由返回键 / 返回入口关闭",
           "public void onBackPressed()" in main_act and "closeDetail()" in main_act)
 
@@ -218,7 +222,7 @@ def main():
           and "PgIcon" in main_act)
     check("ui: 每个页面声明导航图标 glyph()",
           all("PgIcon.Glyph" in read(f) for f in [
-              "HomePage.java", "CategoriesPage.java", "DiagnosticsPage.java",
+              "CategoriesPage.java", "DiagnosticsPage.java",
               "SettingsPage.java", "AboutPage.java"]))
     check("ui: 自绘矢量图标（不引入图片资源 / 第三方库）",
           "enum Glyph" in icon_src and "canvas.draw" in icon_src)

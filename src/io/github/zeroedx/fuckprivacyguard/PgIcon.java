@@ -20,7 +20,7 @@ import android.graphics.drawable.Drawable;
  */
 final class PgIcon extends Drawable {
 
-    enum Glyph {HOME, GRID, PULSE, SLIDERS, INFO, SHIELD, RESTART, CHECK, ARROW}
+    enum Glyph {GRID, PULSE, SLIDERS, INFO, SHIELD, RESTART, CHECK, ARROW}
 
     private final Glyph glyph;
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -55,18 +55,6 @@ final class PgIcon extends Drawable {
 
         Path p = new Path();
         switch (glyph) {
-            case HOME:
-                p.moveTo(3.5f, 11f);
-                p.lineTo(12f, 3.5f);
-                p.lineTo(20.5f, 11f);
-                canvas.drawPath(p, paint);
-                p.reset();
-                p.moveTo(6f, 9.6f);
-                p.lineTo(6f, 19.5f);
-                p.lineTo(18f, 19.5f);
-                p.lineTo(18f, 9.6f);
-                canvas.drawPath(p, paint);
-                break;
             case GRID: {
                 float r = 2.2f;
                 canvas.drawRoundRect(new RectF(3.5f, 3.5f, 10.8f, 10.8f), r, r, paint);

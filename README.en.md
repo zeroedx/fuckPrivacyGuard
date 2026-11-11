@@ -113,7 +113,7 @@ Network and method layers are independent: when obfuscated class names change, d
 |---|---|
 | ![brand](docs/images/brand-icon.png) | ![cards](docs/images/ui-cards.png) |
 
-Since 2.1 the UI has five pages behind a bottom navigation bar: Home (status / master switch / bulk actions), Categories (the 13 component groups listed by system component — tap one to open its switches), Diagnostics (scope / runtime records / self-check), Settings (general / appearance / rules / logs) and About (links / credits / license).
+Since 2.1.1 the UI has four pages behind a bottom navigation bar: Categories (the default page; the 13 component groups listed by system component — tap one to open its switches, plus the bulk actions), Diagnostics (scope / runtime records / self-check), Settings (general / appearance / rules / logs) and About (links / version / credits / license).
 
 Each Categories row shows the component name, package, install state and scope state; components that are not installed are still listed and marked "not installed", never shown as protected. Inside a component's detail page the top-right switch is that app's LSPosed scope switch; items are dimmed while the app is out of scope.
 
