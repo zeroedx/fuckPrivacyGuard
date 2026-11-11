@@ -24,8 +24,14 @@ final class AboutPage extends Page {
     }
 
     @Override
+    PgIcon.Glyph glyph() {
+        return PgIcon.Glyph.INFO;
+    }
+
+    @Override
     View build() {
         LinearLayout root = ui.column();
+        root.addView(ui.pageTitle(title()));
 
         LinearLayout brand = ui.column();
         brand.setGravity(Gravity.CENTER_HORIZONTAL);

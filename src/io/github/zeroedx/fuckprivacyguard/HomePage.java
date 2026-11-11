@@ -24,32 +24,41 @@ final class HomePage extends Page {
     }
 
     @Override
+    PgIcon.Glyph glyph() {
+        return PgIcon.Glyph.HOME;
+    }
+
+    @Override
     View build() {
         LinearLayout root = ui.column();
 
-        /* 品牌头图 */
+        /* 品牌头图（首页以品牌头图作为页头，不再另加大标题） */
         LinearLayout brand = ui.column();
         brand.setGravity(Gravity.CENTER_HORIZONTAL);
-        brand.setPadding(0, ui.dp(16), 0, ui.dp(16));
+        brand.setPadding(0, ui.dp(8), 0, ui.dp(20));
         ImageView logo = new ImageView(host);
         android.graphics.drawable.Drawable icon = ui.icon("brand_icon");
         if (icon != null) logo.setImageDrawable(icon);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ui.dp(88), ui.dp(88));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ui.dp(80), ui.dp(80));
         logo.setLayoutParams(lp);
         brand.addView(logo);
-        TextView name = ui.text("fuckPrivacyGuard", 22, ui.text);
+        TextView name = ui.text("fuckPrivacyGuard", 21, ui.text);
         name.setTypeface(null, android.graphics.Typeface.BOLD);
         name.setPadding(0, ui.dp(10), 0, 0);
         brand.addView(name);
         TextView ver = ui.text("v" + Config.VERSION, 12, ui.sub);
+        ver.setPadding(0, ui.dp(2), 0, 0);
         brand.addView(ver);
         root.addView(brand);
 
         /* 运行状态 */
         root.addView(ui.sectionRow(Ui.T("运行状态"), null));
         LinearLayout status = ui.card();
-        status.addView(ui.infoRow(Ui.T("LSPosed"),
-                ModuleState.I.connected() ? Ui.T("已连接") : Ui.T("未连接")));
+        boolean connected = ModuleState.I.connected();
+        status.addView(ui.statusChipRow(
+                Ui.T("LSPosed"),
+                connected ? Ui.T("已连接") : Ui.T("未连接"),
+                connected));
         status.addView(ui.line());
         String fw = ModuleState.I.framework();
         status.addView(ui.infoRow(Ui.T("框架"), fw != null ? fw : Ui.T("未知")));

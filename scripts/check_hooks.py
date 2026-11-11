@@ -129,13 +129,138 @@ def main():
 
     # ---- H. 作用域未知状态显示（审计 P1-6） ----
     cats = read("CategoriesPage.java")
+    detail = read("ComponentDetailPage.java")
     diag = read("DiagnosticsPage.java")
-    check("scope: CategoriesPage 用 scopeKnown 区分未知与未加入",
-          "scopeKnown && !ModuleState.I.inScope(g.pkg)" in cats)
-    check("scope: CategoriesPage 未知时不变暗",
-          "!scopeKnown || ModuleState.I.inScope(g.pkg) ? 1f : 0.4f" in cats)
+    check("scope: 组件二级页用 scopeKnown 区分未知与未加入",
+          "scopeKnown && !ModuleState.I.inScope(g.pkg)" in detail)
+    check("scope: 组件二级页未知时不变暗",
+          "!scopeKnown || ModuleState.I.inScope(g.pkg) ? 1f : 0.4f" in detail)
+    check("scope: 分类页按组件列出并标注未安装",
+          "host.installState(g.pkg)" in cats and 'Ui.T("未安装")' in cats)
+    check("scope: 分类页用三态区分未安装与无法确认",
+          "InstallStatus.State.NOT_INSTALLED" in cats
+          and "InstallStatus.State.UNKNOWN" in cats
+          and 'Ui.T("安装状态无法确认")' in cats)
+    check("scope: 分类页点击进入组件二级页",
+          "host.openComponent(g)" in cats)
+    check("scope: 组件二级页返回入口",
+          "host.closeDetail()" in detail)
     check("scope: DiagnosticsPage 未加入仅在 scopeKnown 时显示",
           "ModuleState.I.scopeKnown() ? Ui.T(\"未加入\") : Ui.T(\"未知\")" in diag)
+
+    # ---- G2. 配置通道：不再依赖 root，改用 LSPosed RemotePreferences ----
+    wire = read("ConfigWire.java")
+    ms = read("ModuleState.java")
+    main_act_src = read("MainActivity.java")
+    check("config: 配置写入不再调 su",
+          "Runtime.getRuntime" not in cfg and "ProcessBuilder" not in cfg
+          and '"su"' not in cfg and "settings put global" not in cfg)
+    check("config: 走 RemotePreferences 分组与键",
+          "REMOTE_GROUP" in cfg and "getRemotePreferences(Config.REMOTE_GROUP)" in entry)
+    check("config: 能力位检查 PROP_CAP_REMOTE",
+          "PROP_CAP_REMOTE" in entry and "PROP_CAP_REMOTE" in ms)
+    check("config: hook 侧绑定通道",
+          "bindConfigChannel" in entry and "Config.bindRemote(getRemotePreferences" in entry)
+    check("config: 热重载后重新绑定通道",
+          entry.count("bindConfigChannel()") >= 2)
+    check("config: UI 侧绑定通道",
+          "Config.bindRemote(ModuleState.I.remotePrefs())" in main_act_src)
+    check("config: 旧版 Settings.Global 仅读回落",
+          "readLegacyGlobal" in cfg and "GLOBAL_KEY" in cfg)
+    check("config: 协议编解码集中在 ConfigWire",
+          "static String encode" in wire and "static Map<String, String> decode" in wire)
+
+    # ---- H2. 2.1 界面：去掉搜索，分类改组件二级页 ----
+    main_act = read("MainActivity.java")
+    check("nav: 搜索页文件已删除",
+          not os.path.exists(os.path.join(SRC, "SearchPage.java")))
+    check("nav: 底部导航为 5 项且不含搜索",
+          re.findall(r'new (\w+Page)\(this, ui\)', main_act)
+          == ["HomePage", "CategoriesPage", "DiagnosticsPage", "SettingsPage", "AboutPage"])
+    check("nav: 组件二级页由返回键 / 返回入口关闭",
+          "public void onBackPressed()" in main_act and "closeDetail()" in main_act)
+
+    # ---- H2b. 导航数组：三个数组都必须先按 pages.length 分配，再索引写入 ----
+    # 只查字段名出现会放过「声明了却没分配」的启动崩溃（NPE）。改为比对行号：
+    # 分配语句必须存在，且位于该数组首次索引写入之前。
+    def _line_of(text, pattern):
+        for n, line in enumerate(text.splitlines(), 1):
+            if re.search(pattern, line):
+                return n
+        return -1
+
+    def nav_array_ok(src, name):
+        alloc = _line_of(src, r'\b%s\s*=\s*new\b[^;]*\[\s*pages\.length\s*\]' % name)
+        write = _line_of(src, r'\b%s\s*\[[^\]]+\]\s*=[^=]' % name)
+        return alloc != -1 and write != -1 and alloc < write
+
+    for _arr in ("navTabs", "navIcons", "navItems"):
+        check("nav: %s 先按 pages.length 分配再索引写入" % _arr,
+              nav_array_ok(main_act, _arr))
+
+    # 回归：合成一个「声明了却没分配」的片段，门禁必须判定为不通过。
+    _broken = ("private LinearLayout[] navItems;\n"
+               "navTabs = new TextView[pages.length];\n"
+               "navIcons = new android.widget.ImageView[pages.length];\n"
+               "for (int i = 0; i < pages.length; i++) {\n"
+               "    navItems[i] = item;\n"
+               "}\n")
+    check("nav: 门禁能识别「声明未分配」的回归片段",
+          not nav_array_ok(_broken, "navItems"))
+
+    # ---- H3. 2.1 界面改版：HyperCeiler 式导航 / 图标 / 分区 ----
+    ui_src = read("Ui.java")
+    icon_src = read("PgIcon.java")
+    check("ui: 底部导航项由图标 + 文字构成（非仅字段名）",
+          "navIcons" in main_act and "navItems" in main_act
+          and re.search(r'item\.addView\(ic', main_act) is not None
+          and re.search(r'item\.addView\(tab\)', main_act) is not None
+          and "PgIcon" in main_act)
+    check("ui: 每个页面声明导航图标 glyph()",
+          all("PgIcon.Glyph" in read(f) for f in [
+              "HomePage.java", "CategoriesPage.java", "DiagnosticsPage.java",
+              "SettingsPage.java", "AboutPage.java"]))
+    check("ui: 自绘矢量图标（不引入图片资源 / 第三方库）",
+          "enum Glyph" in icon_src and "canvas.draw" in icon_src)
+    check("ui: 组件行优先真实应用图标、取不到时字符徽标",
+          "componentIcon" in ui_src and "getApplicationIcon" in ui_src
+          and "PgIcon.badge" in ui_src)
+    check("ui: 分类页与二级页都使用组件图标",
+          "componentIcon" in cats and "componentIcon" in detail)
+    check("ui: 作用域与隐私功能分区标题（作用域开关与功能开关分开）",
+          'Ui.T("作用域")' in detail and 'Ui.T("隐私功能")' in detail)
+    check("ui: 未安装组件行置灰（仅确认未安装才置灰）",
+          "state == InstallStatus.State.NOT_INSTALLED ? 0.55f : 1f" in cats)
+    check("ui: 卡片带描边、页面大标题统一",
+          "setStroke" in ui_src and "pageTitle" in ui_src)
+
+    # ---- H3. 安装状态误判（Package Visibility 回归）----
+    install = read("InstallStatus.java")
+    manifest = ""
+    try:
+        with open(os.path.join(ROOT, "AndroidManifest.xml"), encoding="utf-8") as f:
+            manifest = f.read()
+    except OSError:
+        pass
+    check("install: 区分 NameNotFoundException(未安装) 与 SecurityException(无法确认)",
+          "NameNotFoundException" in install and "SecurityException" in install
+          and "State.NOT_INSTALLED" in install and "State.UNKNOWN" in install)
+    check("install: 查询成功才算已安装",
+          "State.INSTALLED" in install)
+    check("install: 用 MATCH_DISABLED_COMPONENTS（停用仍算已安装）",
+          "MATCH_DISABLED_COMPONENTS" in install)
+    check("install: MainActivity.isInstalled 委托 InstallStatus（不再 catch(Throwable)->false）",
+          "InstallStatus.isInstalled(this, pkg)" in main_act
+          and "getApplicationInfo(pkg, 0)" not in main_act)
+    check("install: 三个页面都用 installState 三态",
+          "host.installState(" in cats and "host.installState(" in detail
+          and "host.installState(" in diag)
+    check("install: AndroidManifest 声明 <queries> 且不含 QUERY_ALL_PACKAGES",
+          "<queries>" in manifest
+          and "android.permission.QUERY_ALL_PACKAGES" not in manifest)
+    # 回归：旧实现把任何查询失败都当成未安装
+    check("install: 不再有 catch(Throwable) 直接判未安装的旧写法",
+          "catch (Throwable t) {\n            return false;" not in main_act)
 
     # ---- I. 真实命中记录（审计 P1-3）：安装成功不得等同于拦截成功 ----
     check("hit: XSOF Provider 记录真实命中",

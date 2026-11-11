@@ -26,11 +26,15 @@ import android.widget.TextView;
 final class Ui {
 
     static final int ACCENT = 0xFF3478F6;
+    /** 强调色的浅底（chip / 选中导航项底色） */
+    static final int ACCENT_SOFT_LIGHT = 0x1F3478F6;
+    static final int ACCENT_SOFT_DARK = 0x333478F6;
 
     private static Context app;
     private static float density;
 
-    int bg, card, text, sub, line, trackOff, pressed;
+    int bg, card, text, sub, line, trackOff, pressed, stroke, accentSoft, chipBg;
+
     boolean night;
 
     private Ui() {
@@ -76,20 +80,26 @@ final class Ui {
         this.night = night;
         if (night) {
             bg = 0xFF000000;
-            card = 0xFF1C1C1E;
+            card = 0xFF1A1A1C;
             text = 0xFFFFFFFF;
-            sub = 0xFF8E8E93;
-            line = 0xFF2C2C2E;
+            sub = 0xFF9A9AA0;
+            line = 0x14FFFFFF;
             trackOff = 0xFF3A3A3C;
-            pressed = 0xFF3A3A3C;
+            pressed = 0xFF2A2A2E;
+            stroke = 0x14FFFFFF;
+            accentSoft = ACCENT_SOFT_DARK;
+            chipBg = 0x14FFFFFF;
         } else {
-            bg = 0xFFF2F3F5;
+            bg = 0xFFF4F5F7;
             card = 0xFFFFFFFF;
             text = 0xFF1A1A1A;
             sub = 0xFF8A8A8E;
-            line = 0xFFEFEFF0;
+            line = 0x14000000;
             trackOff = 0xFFE9E9EB;
-            pressed = 0xFFE5E5E5;
+            pressed = 0xFFE8E9EC;
+            stroke = 0x0A000000;
+            accentSoft = ACCENT_SOFT_LIGHT;
+            chipBg = 0x0A000000;
         }
     }
 
@@ -107,8 +117,12 @@ final class Ui {
         return text(s, 16, text);
     }
 
-    TextView caption(String s) {
-        return text(s, 12, sub);
+    /** 页面大标题（HyperCeiler 式大标题：26sp 粗体，左对齐） */
+    TextView pageTitle(String s) {
+        TextView tv = text(s, 26, text);
+        tv.setTypeface(null, Typeface.BOLD);
+        tv.setPadding(dp(4), dp(4), dp(4), dp(14));
+        return tv;
     }
 
     LinearLayout column() {
@@ -124,20 +138,71 @@ final class Ui {
         return l;
     }
 
-    /** 大圆角卡片 */
+    /** 大圆角卡片：纯色底 + 极浅描边（深色下用于区分抬升面） */
     LinearLayout card() {
         LinearLayout c = new LinearLayout(app);
         c.setOrientation(LinearLayout.VERTICAL);
         GradientDrawable bgd = new GradientDrawable();
         bgd.setColor(card);
         bgd.setCornerRadius(dp(20));
+        bgd.setStroke(Math.max(1, dp(0.5f)), stroke);
         c.setBackground(bgd);
         c.setPadding(dp(16), dp(4), dp(16), dp(4));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.bottomMargin = dp(10);
+        lp.bottomMargin = dp(12);
         c.setLayoutParams(lp);
         return c;
+    }
+
+    /** 圆角底：用于导航选中态、chip、徽标 */
+    GradientDrawable rounded(int color, float radiusDp) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius(dp(radiusDp));
+        return d;
+    }
+
+    /** 图标（自绘矢量），按给定 dp 尺寸与颜色 */
+    android.widget.ImageView icon(PgIcon.Glyph glyph, int color, float sizeDp) {
+        android.widget.ImageView iv = new android.widget.ImageView(app);
+        PgIcon ic = new PgIcon(glyph, color);
+        iv.setImageDrawable(ic);
+        iv.setLayoutParams(new LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp)));
+        return iv;
+    }
+
+    /** 组件图标兜底：圆角字符徽标 */
+    android.widget.ImageView badge(String text, float sizeDp) {
+        android.widget.ImageView iv = new android.widget.ImageView(app);
+        iv.setImageDrawable(PgIcon.badge(app, text, accentSoft, ACCENT));
+        iv.setLayoutParams(new LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp)));
+        return iv;
+    }
+
+    /** 组件图标：优先真实应用图标，取不到时用字符徽标兜底 */
+    android.widget.ImageView componentIcon(String pkg, String fallback, float sizeDp) {
+        android.widget.ImageView iv = new android.widget.ImageView(app);
+        android.graphics.drawable.Drawable d = null;
+        try {
+            d = app.getPackageManager().getApplicationIcon(pkg);
+        } catch (Throwable ignored) {
+        }
+        iv.setImageDrawable(d != null ? d : PgIcon.badge(app, fallback, accentSoft, ACCENT));
+        iv.setLayoutParams(new LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp)));
+        return iv;
+    }
+
+    /** 状态 chip：小圆角底 + 彩色文字 */
+    TextView chip(String label, int fg, int bgColor) {
+        TextView tv = new TextView(app);
+        tv.setText(label);
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+        tv.setTextColor(fg);
+        tv.setBackground(rounded(bgColor, 8));
+        tv.setPadding(dp(8), dp(2), dp(8), dp(2));
+        tv.setTag("chip");
+        return tv;
     }
 
     /** 分组行：左侧小标题，右侧可选说明 */
@@ -158,14 +223,6 @@ final class Ui {
         return r;
     }
 
-    TextView sectionTitle(String s) {
-        TextView tv = text(s, 14, sub);
-        tv.setMinHeight(dp(35));
-        tv.setGravity(Gravity.BOTTOM);
-        tv.setPadding(dp(12), dp(16), 0, dp(8));
-        return tv;
-    }
-
     /** 列表分隔线：0.75dp */
     View divider() {
         View v = new View(app);
@@ -181,12 +238,6 @@ final class Ui {
         v.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)));
         v.setBackgroundColor(line);
         return v;
-    }
-
-    TextView groupNote(String s) {
-        TextView tv = text(s, 11, sub);
-        tv.setPadding(0, 0, 0, dp(8));
-        return tv;
     }
 
     /** 自绘开关，颜色跟随色板 */
@@ -261,6 +312,20 @@ final class Ui {
         return r;
     }
 
+    /** 带状态 chip 的信息行：左侧标签，右侧彩色 chip */
+    ViewGroup statusChipRow(String label, String chipText, boolean ok) {
+        LinearLayout r = row();
+        r.setMinimumHeight(dp(56));
+        r.setPadding(0, dp(9), 0, dp(9));
+        TextView name = text(label, 14, text);
+        name.setLayoutParams(new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        r.addView(name);
+        int fg = ok ? ACCENT : sub;
+        r.addView(chip(chipText, fg, ok ? accentSoft : chipBg));
+        return r;
+    }
+
     ViewGroup linkRow(String label, String value, final Runnable action) {
         LinearLayout r = row();
         r.setMinimumHeight(dp(56));
@@ -324,7 +389,7 @@ final class Ui {
             ((Button) v).setTextColor(ACCENT);
         } else if (v instanceof TextView) {
             TextView tv = (TextView) v;
-            if (!"accent".equals(tv.getTag())) {
+            if (!"accent".equals(tv.getTag()) && !"chip".equals(tv.getTag())) {
                 float sp = tv.getTextSize() / app.getResources().getDisplayMetrics().scaledDensity;
                 tv.setTextColor(sp <= 12.5f ? sub : text);
             }

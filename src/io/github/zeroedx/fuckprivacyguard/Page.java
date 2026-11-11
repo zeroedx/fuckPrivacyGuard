@@ -18,6 +18,9 @@ abstract class Page {
     /** 页面标题，用于导航与无障碍 */
     abstract String title();
 
+    /** 底部导航图标 */
+    abstract PgIcon.Glyph glyph();
+
     /** 构建页面内容（放进宿主的 ScrollView） */
     abstract View build();
 

@@ -39,14 +39,21 @@ public class MainActivity extends Activity {
     private static final String TAG = "fuckPrivacyGuard";
     private static final String LAUNCHER_ALIAS = "io.github.zeroedx.fuckprivacyguard.Launcher";
     private static final int DISCLAIMER_VER = 14;
+    /** 分类页在底部导航中的下标；组件二级页挂在该页下 */
+    private static final int TAB_CATEGORIES = 1;
 
     private Ui ui;
     private Dialogs dialogs;
     private Page[] pages;
     private TextView[] navTabs;
+    private android.widget.ImageView[] navIcons;
+    private LinearLayout[] navItems;
     private ScrollView scroll;
     private LinearLayout contentRoot;
     private LinearLayout navBar;
+
+    /** 非空时「分类」页显示该组件的二级页面 */
+    private Catalog.Group detailGroup;
 
     private int current = 0;
     private int appliedNight = -1;
@@ -218,7 +225,6 @@ public class MainActivity extends Activity {
         pages = new Page[]{
                 new HomePage(this, ui),
                 new CategoriesPage(this, ui),
-                new SearchPage(this, ui),
                 new DiagnosticsPage(this, ui),
                 new SettingsPage(this, ui),
                 new AboutPage(this, ui),
@@ -239,27 +245,50 @@ public class MainActivity extends Activity {
         scroll.addView(contentRoot, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
+        View navDivider = new View(this);
+        navDivider.setBackgroundColor(ui.line);
+        outer.addView(navDivider, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, ui.dp(0.75f))));
+
         navBar = new LinearLayout(this);
         navBar.setOrientation(LinearLayout.HORIZONTAL);
         navBar.setGravity(Gravity.CENTER_VERTICAL);
         navBar.setBackgroundColor(ui.card);
-        navBar.setPadding(0, ui.dp(6), 0, ui.dp(6) + navBarHeight());
+        navBar.setPadding(ui.dp(6), ui.dp(6), ui.dp(6), ui.dp(6) + navBarHeight());
         outer.addView(navBar, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         navTabs = new TextView[pages.length];
+        navIcons = new android.widget.ImageView[pages.length];
+        navItems = new LinearLayout[pages.length];
         for (int i = 0; i < pages.length; i++) {
             final int idx = i;
+            LinearLayout item = new LinearLayout(this);
+            item.setOrientation(LinearLayout.VERTICAL);
+            item.setGravity(Gravity.CENTER_HORIZONTAL);
+            item.setPadding(0, ui.dp(6), 0, ui.dp(6));
+            item.setBackground(ui.rounded(0x00000000, 12));
+            item.setLayoutParams(new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            item.setOnClickListener(v -> {
+                // 在组件二级页面时再点「分类」标签，回到组件列表
+                if (idx == TAB_CATEGORIES && detailOpen()) closeDetail();
+                else showPage(idx);
+            });
+            android.widget.ImageView ic = ui.icon(pages[i].glyph(), ui.sub, 22);
+            LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(ui.dp(22), ui.dp(22));
+            ilp.gravity = Gravity.CENTER_HORIZONTAL;
+            item.addView(ic, ilp);
             TextView tab = new TextView(this);
             tab.setText(pages[i].title());
-            tab.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+            tab.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
             tab.setGravity(Gravity.CENTER);
-            tab.setPadding(0, ui.dp(10), 0, ui.dp(10));
-            tab.setLayoutParams(new LinearLayout.LayoutParams(
-                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-            tab.setOnClickListener(v -> showPage(idx));
+            tab.setPadding(0, ui.dp(3), 0, 0);
+            item.addView(tab);
             navTabs[i] = tab;
-            navBar.addView(tab);
+            navIcons[i] = ic;
+            navItems[i] = item;
+            navBar.addView(item);
         }
 
         setContentView(outer);
@@ -273,17 +302,23 @@ public class MainActivity extends Activity {
 
     private void showPage(int i) {
         if (i < 0 || i >= pages.length) return;
+        // 离开分类页就退出组件二级页面，重新进入时回到组件列表
+        if (i != TAB_CATEGORIES) detailGroup = null;
         current = i;
         contentRoot.removeAllViews();
-        contentRoot.addView(pages[i].build());
+        contentRoot.addView(pageContent(i));
         pages[i].onShow();
         I18n.apply(contentRoot);
         updateNavHighlight();
         if (scroll != null) scroll.scrollTo(0, 0);
     }
 
-    void showCategories() {
-        showPage(1);
+    /** 分类页在选中某个组件时显示其二级页面，否则显示组件列表 */
+    private View pageContent(int i) {
+        if (i == TAB_CATEGORIES && detailGroup != null) {
+            return new ComponentDetailPage(this, ui, detailGroup).build();
+        }
+        return pages[i].build();
     }
 
     /** 状态变化后刷新当前页，保留滚动位置 */
@@ -291,16 +326,56 @@ public class MainActivity extends Activity {
         if (contentRoot == null) return;
         int y = scroll == null ? 0 : scroll.getScrollY();
         contentRoot.removeAllViews();
-        contentRoot.addView(pages[current].build());
+        contentRoot.addView(pageContent(current));
         I18n.apply(contentRoot);
         if (scroll != null) scroll.post(() -> scroll.scrollTo(0, y));
+    }
+
+    /** 打开组件二级页面（仅限分类页） */
+    void openComponent(Catalog.Group g) {
+        if (current != TAB_CATEGORIES) showPage(TAB_CATEGORIES);
+        detailGroup = g;
+        contentRoot.removeAllViews();
+        contentRoot.addView(pageContent(current));
+        I18n.apply(contentRoot);
+        if (scroll != null) scroll.scrollTo(0, 0);
+    }
+
+    /** 组件二级页面是否处于打开状态 */
+    boolean detailOpen() {
+        return detailGroup != null && current == TAB_CATEGORIES;
+    }
+
+    /** 返回组件列表；返回 true 表示确实消费了本次返回 */
+    boolean closeDetail() {
+        if (!detailOpen()) return false;
+        detailGroup = null;
+        contentRoot.removeAllViews();
+        contentRoot.addView(pageContent(current));
+        I18n.apply(contentRoot);
+        if (scroll != null) scroll.scrollTo(0, 0);
+        return true;
+    }
+
+    @Override
+    public void onBackPressed() {
+        // 组件二级页面：先返回组件列表；其余情况交给系统默认（退出 / 上级导航）
+        if (closeDetail()) return;
+        super.onBackPressed();
     }
 
     private void updateNavHighlight() {
         if (navTabs == null) return;
         for (int i = 0; i < navTabs.length; i++) {
-            navTabs[i].setTextColor(i == current ? Ui.ACCENT : ui.sub);
-            navTabs[i].setTypeface(null, i == current ? Typeface.BOLD : Typeface.NORMAL);
+            boolean sel = i == current;
+            navTabs[i].setTextColor(sel ? Ui.ACCENT : ui.sub);
+            navTabs[i].setTypeface(null, sel ? Typeface.BOLD : Typeface.NORMAL);
+            if (navIcons != null && navIcons[i] != null) {
+                ((PgIcon) navIcons[i].getDrawable()).setColor(sel ? Ui.ACCENT : ui.sub);
+            }
+            if (navItems != null && navItems[i] != null) {
+                navItems[i].setBackground(ui.rounded(sel ? ui.accentSoft : 0x00000000, 12));
+            }
         }
     }
 
@@ -398,6 +473,7 @@ public class MainActivity extends Activity {
                 @Override
                 public void onServiceBind(XposedService service) {
                     ModuleState.I.xposed = service;
+                    Config.bindRemote(ModuleState.I.remotePrefs());
                     bindRetry = 0;
                     android.util.Log.i(TAG, "XposedService bound: "
                             + service.getFrameworkName() + " " + service.getFrameworkVersion());
@@ -410,6 +486,7 @@ public class MainActivity extends Activity {
                 @Override
                 public void onServiceDied(XposedService service) {
                     ModuleState.I.xposed = null;
+                    Config.bindRemote(null);
                     android.util.Log.w(TAG, "XposedService died");
                     bindRetry++;
                     if (bindRetry < 30) h.postDelayed(MainActivity.this::bindServiceHelper, 2000);
@@ -436,9 +513,11 @@ public class MainActivity extends Activity {
             if (scope == null) {
                 Config.get(this, g.key, true);
             } else {
-                Config.uiSet(this, g.key, scope.contains(g.pkg));
+                Config.uiSetLocal(this, g.key, scope.contains(g.pkg));
             }
         }
+        // 组开关可能与通道里的值不同，统一推一次
+        Config.pushAll(this);
         if (scope != null && scope.isEmpty() && !autoRequested) {
             autoRequested = true;
             requestAll();
@@ -473,7 +552,7 @@ public class MainActivity extends Activity {
         android.util.Log.i(TAG, "requestScope(" + pkg + ") sending");
         ModuleState.I.requestScope(ModuleState.one(pkg), (ok, msg) -> {
             if (ok) {
-                Config.uiSet(this, g.key, true);
+                Config.uiSetLocal(this, g.key, true);
                 toast("已加入作用域：" + msg);
                 syncFromService();
             } else {
@@ -487,7 +566,7 @@ public class MainActivity extends Activity {
         if (!ModuleState.I.connected()) return;
         ModuleState.I.removeScope(ModuleState.one(pkg), (ok, msg) -> {
             if (ok) {
-                Config.uiSet(this, g.key, false);
+                Config.uiSetLocal(this, g.key, false);
                 toast("已移出作用域：" + pkg);
                 syncFromService();
             } else {
@@ -510,7 +589,7 @@ public class MainActivity extends Activity {
         ModuleState.I.requestScope(targets, (ok, msg) -> {
             if (ok) {
                 for (Catalog.Group g : Catalog.GROUPS) {
-                    if (isInstalled(g.pkg)) Config.uiSet(this, g.key, true);
+                    if (isInstalled(g.pkg)) Config.uiSetLocal(this, g.key, true);
                 }
                 toast("已请求 " + targets.size() + " 个作用域");
                 syncFromService();
@@ -526,7 +605,7 @@ public class MainActivity extends Activity {
         for (Catalog.Group g : Catalog.GROUPS) all.add(g.pkg);
         ModuleState.I.removeScope(all, (ok, msg) -> {
             if (ok) {
-                for (Catalog.Group g : Catalog.GROUPS) Config.uiSet(this, g.key, false);
+                for (Catalog.Group g : Catalog.GROUPS) Config.uiSetLocal(this, g.key, false);
                 toast("已移出全部作用域");
                 syncFromService();
             } else {
@@ -544,7 +623,7 @@ public class MainActivity extends Activity {
         if (ModuleState.I.inScope(g.pkg)) return;
         ModuleState.I.requestScope(ModuleState.one(g.pkg), (ok, msg) -> {
             if (ok) {
-                Config.uiSet(this, g.key, true);
+                Config.uiSetLocal(this, g.key, true);
                 syncFromService();
             } else {
                 showScopeFailure("「" + g.title + "」加入作用域失败", g.pkg, msg);
@@ -585,12 +664,12 @@ public class MainActivity extends Activity {
     }
 
     boolean isInstalled(String pkg) {
-        try {
-            getPackageManager().getApplicationInfo(pkg, 0);
-            return true;
-        } catch (Throwable t) {
-            return false;
-        }
+        return InstallStatus.isInstalled(this, pkg);
+    }
+
+    /** 三态：已安装 / 未安装 / 无法确认（可见性受限时绝不谎报未安装） */
+    InstallStatus.State installState(String pkg) {
+        return InstallStatus.state(this, pkg);
     }
 
     /* ---------------- 桌面图标 ---------------- */
@@ -635,23 +714,28 @@ public class MainActivity extends Activity {
             for (Catalog.Group g : Catalog.GROUPS) {
                 boolean in = scope != null && scope.contains(g.pkg);
                 sb.append(in ? "[✓] " : "[ ] ").append(g.pkg);
-                if (!isInstalled(g.pkg)) sb.append("（未安装）");
+                InstallStatus.State st = InstallStatus.state(MainActivity.this, g.pkg);
+                if (st == InstallStatus.State.NOT_INSTALLED) sb.append("（未安装）");
+                else if (st == InstallStatus.State.UNKNOWN) sb.append("（安装状态无法确认）");
                 sb.append('\n');
             }
 
             int local = Config.ui(MainActivity.this).getAll().size();
             int remote = 0;
+            SharedPreferences rp = ModuleState.I.remotePrefs();
             try {
-                String raw = android.provider.Settings.Global.getString(
-                        getContentResolver(), Config.GLOBAL_KEY);
-                if (raw != null && !raw.isEmpty()) {
-                    for (String kv : raw.split("\\|")) if (kv.indexOf('=') > 0) remote++;
+                if (rp != null) {
+                    String raw = rp.getString(Config.REMOTE_KEY, null);
+                    if (raw != null && !raw.isEmpty()) {
+                        for (String kv : raw.split("\\|")) if (kv.indexOf('=') > 0) remote++;
+                    }
                 }
             } catch (Throwable ignored) {
             }
             boolean master = Config.get(MainActivity.this, Config.K_MASTER, true);
             sb.append("\n总开关：").append(master ? "已开启" : "已关闭（所有进程都会跳过安装）");
-            sb.append("\n本地开关 ").append(local).append(" 项，系统设置 ").append(remote).append(" 项\n");
+            sb.append("\n本地开关 ").append(local).append(" 项，LSPosed 通道 ")
+                    .append(rp == null ? "未连接" : remote + " 项").append("\n");
 
             sb.append("\nLSPosed 加载记录：\n");
             String lsp = ModuleState.I.execShell(

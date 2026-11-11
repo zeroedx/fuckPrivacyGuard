@@ -8,6 +8,29 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!--
+        Android 11（API 30）起按包名查询其它应用受 Package Visibility 过滤：
+        未在此声明的包，getApplicationInfo 会抛 NameNotFoundException，界面会
+        把已安装组件误显示成「未安装」。这里按 Catalog 精确列出各系统组件包名，
+        不使用 QUERY_ALL_PACKAGES。新增组件时需同步补一项。
+    -->
+    <queries>
+        <package android:name="com.mobiletools.systemhelper" />
+        <package android:name="com.miui.guardprovider" />
+        <package android:name="com.miui.securitycenter" />
+        <package android:name="com.miui.analytics" />
+        <package android:name="com.miui.packageinstaller" />
+        <package android:name="com.xiaomi.market" />
+        <package android:name="com.xiaomi.xmsf" />
+        <package android:name="com.miui.systemAdSolution" />
+        <package android:name="com.xiaomi.registration" />
+        <package android:name="com.miui.dmregservice" />
+        <package android:name="com.miui.misightservice" />
+        <package android:name="com.xiaomi.trustservice" />
+        <package android:name="com.xiaomi.aiasst.vision" />
+    </queries>
+
+
     <application
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"

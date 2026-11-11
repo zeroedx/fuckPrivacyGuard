@@ -302,7 +302,6 @@ final class I18n {
         // 2.0 导航与页面
         EN.put("首页", "Home");
         EN.put("分类", "Categories");
-        EN.put("搜索", "Search");
         EN.put("诊断", "Diagnostics");
         EN.put("设置", "Settings");
         EN.put("运行状态", "Status");
@@ -319,14 +318,33 @@ final class I18n {
         EN.put("已加入", "In scope");
         EN.put("未加入", "Not in scope");
         EN.put("未安装", "Not installed");
+        EN.put("安装状态无法确认", "Install state unconfirmed");
         EN.put("未在作用域，点此加入", "Not in scope, tap to add");
         EN.put("全部启用", "Enable all");
         EN.put("全部停用", "Disable all");
         EN.put("全部重启", "Restart all");
-        EN.put("搜索名称、说明、包名或配置项", "Search name, description, package or config key");
-        EN.put("全部分组", "All groups");
-        EN.put("搜索结果", "Results");
-        EN.put("没有匹配的条目", "No matching entries");
+        // 2.1 分类 -> 组件二级页面
+        EN.put("系统组件", "System components");
+        EN.put("点击组件查看该组件的全部开关", "Tap a component to open its switches");
+        EN.put("开关改动后需重启目标进程才生效", "Restart the target process after changing switches");
+        EN.put("改动任一开关后，需重启目标进程才生效",
+                "After changing any switch, restart the target process for it to take effect");
+        EN.put("正在保护", "Protected");
+        EN.put("未加入作用域", "Not in scope");
+        EN.put("作用域未知", "Scope unknown");
+        EN.put("决定本模块是否注入该组件进程",
+                "Whether this module injects into the component's process");
+        EN.put("隐私功能", "Privacy features");
+        EN.put("返回", "Back");
+        EN.put("该组件", "This component");
+        EN.put("打开后该组件的规则才会注入", "Its rules apply only after this is on");
+        EN.put("启用该组件", "Enable this component");
+        EN.put("未安装：该组件当前不在本机，开关不会生效",
+                "Not installed: this component is absent, switches have no effect");
+        EN.put("安装状态无法确认：可能是系统组件或可见性受限，开关仍会按配置下发",
+                "Install state unconfirmed: system component or visibility restricted; switches still apply");
+        EN.put("‹ 返回", "‹ Back");
+        EN.put("开关", "Switches");
         EN.put("模块信息", "Module info");
         EN.put("模块版本", "Module version");
         EN.put("运行记录", "Runtime records");

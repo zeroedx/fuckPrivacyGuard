@@ -42,6 +42,19 @@ for name, key in groups:
     if f'Config.{name}' not in main:
         problems.append(f'Config.{name}（{key}）没有在界面代码（Catalog / 页面）中使用')
 
+# 4b) Package Visibility：<queries> 必须覆盖 Catalog 里按包名查询的组件，且不得用 QUERY_ALL_PACKAGES
+if re.search(r'android\.permission\.QUERY_ALL_PACKAGES', manifest):
+    problems.append('AndroidManifest 使用了 QUERY_ALL_PACKAGES（本项目约定不使用，应按包名精确声明）')
+catalog_pkgs = re.findall(r'new Group\([^,]+,\s*"([a-z][a-z0-9.]*)"', read('src/io/github/zeroedx/fuckprivacyguard/Catalog.java'))
+queries = re.findall(r'<package\s+android:name="([^"]+)"\s*/>', manifest)
+if '<queries>' not in manifest:
+    problems.append('AndroidManifest 缺少 <queries>：targetSdk≥30 时按包名查询会抛 NameNotFoundException，安装状态会被误判为「未安装」')
+else:
+    for pkg in catalog_pkgs:
+        if pkg not in queries:
+            problems.append(f'Catalog 组件 {pkg} 未在 AndroidManifest 的 <queries> 中声明，安装状态查询会被 Package Visibility 过滤')
+
+
 # 5) scope.list 内容提示
 pkgs = [l for l in scope.splitlines() if l.strip()]
 notes.append(f'scope.list 共 {len(pkgs)} 个包，Config 分组 {len(groups)} 个')

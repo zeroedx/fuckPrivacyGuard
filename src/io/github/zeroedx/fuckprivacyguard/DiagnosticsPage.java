@@ -21,8 +21,14 @@ final class DiagnosticsPage extends Page {
     }
 
     @Override
+    PgIcon.Glyph glyph() {
+        return PgIcon.Glyph.PULSE;
+    }
+
+    @Override
     View build() {
         LinearLayout root = ui.column();
+        root.addView(ui.pageTitle(title()));
 
         root.addView(ui.sectionRow(Ui.T("模块信息"), null));
         LinearLayout info = ui.card();
@@ -45,10 +51,7 @@ final class DiagnosticsPage extends Page {
         for (Catalog.Group g : Catalog.GROUPS) {
             if (!first) scopeCard.addView(ui.line());
             first = false;
-            String state = !host.isInstalled(g.pkg)
-                    ? Ui.T("未安装")
-                    : (ModuleState.I.inScope(g.pkg) ? Ui.T("已加入")
-                            : (ModuleState.I.scopeKnown() ? Ui.T("未加入") : Ui.T("未知")));
+            String state = scopeStateLabel(g);
             scopeCard.addView(ui.infoRow(g.title, g.pkg + "  " + state));
         }
         root.addView(scopeCard);
@@ -68,5 +71,19 @@ final class DiagnosticsPage extends Page {
         root.addView(logs);
 
         return root;
+    }
+
+    /**
+     * 作用域行的状态：先看安装状态，再看作用域。
+     * 「无法确认」不再冒充「未安装」——只标注可见性受限，作用域仍按真实值显示。
+     */
+    private String scopeStateLabel(Catalog.Group g) {
+        InstallStatus.State st = host.installState(g.pkg);
+        if (st == InstallStatus.State.NOT_INSTALLED) return Ui.T("未安装");
+        String scope;
+        if (ModuleState.I.inScope(g.pkg)) scope = Ui.T("已加入");
+        else scope = ModuleState.I.scopeKnown() ? Ui.T("未加入") : Ui.T("未知");
+        if (st == InstallStatus.State.UNKNOWN) return Ui.T("安装状态无法确认") + " / " + scope;
+        return scope;
     }
 }

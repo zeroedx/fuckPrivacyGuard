@@ -29,8 +29,14 @@ final class SettingsPage extends Page {
     }
 
     @Override
+    PgIcon.Glyph glyph() {
+        return PgIcon.Glyph.SLIDERS;
+    }
+
+    @Override
     View build() {
         LinearLayout root = ui.column();
+        root.addView(ui.pageTitle(title()));
 
         root.addView(ui.sectionRow(Ui.T("通用"), Ui.T("开关打开 = 拦截该行为，关闭 = 放行")));
         LinearLayout general = ui.card();
