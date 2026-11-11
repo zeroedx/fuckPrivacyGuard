@@ -5,10 +5,10 @@
 ![license](https://img.shields.io/badge/license-GPL--3.0-blue)
 ![language](https://img.shields.io/badge/language-Java-orange)
 ![release](https://img.shields.io/github/v/release/zeroedx/fuckPrivacyGuard?label=release&color=green)
-![android](https://img.shields.io/badge/Android-10--16-green)
+![android](https://img.shields.io/badge/Android-10--17-green)
 ![status](https://img.shields.io/badge/status-按需维护-2da44e?style=flat-square)
 
-在采集入口、本地存储、对外接口、网络出口四层拦截 HyperOS 预装组件的隐私上报
+基于 LSPosed 的 HyperOS 隐私加固模块，在数据来源、本地存储、跨进程接口、网络出口四层拦截预装组件的上报行为
 
 </div>
 
@@ -16,7 +16,7 @@
 
 以下内容基于对本机预装组件的静态分析与运行时观察：这些组件会采集设备标识、应用使用记录、位置、通话行为等信息，并通过网络或跨进程接口发出。本模块在这些通道上按应用分组拦截，开关与 LSPosed 作用域联动。具体行为以各自机型和系统版本上的观察为准。
 
-> **维护节奏**：本项目由个人维护，开发与验证主要依赖 AI 辅助与自费的真机测试，长期成本由作者个人承担。更新频率已主动下调：只在出现影响使用的缺陷、发现新的上报通道或系统大版本适配时发版；界面、文案与小功能改动会并入下一次实质更新，不单独出包。issue 会看，但不承诺响应时间和实现排期，未确认的功能请求可能长期不做，或并入相近的改动一起处理。
+> **维护节奏**：本项目由个人维护，长期成本由作者个人承担。更新频率已主动下调：只在出现影响使用的缺陷、发现新的上报通道或系统大版本适配时发版；界面、文案与小功能改动会并入下一次实质更新，不单独出包。issue 会看，但不承诺响应时间和实现排期，未确认的功能请求可能长期不做，或并入相近的改动一起处理。
 
 改代码前建议先看 [AGENTS.md](AGENTS.md)（协作约定）与 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)（结构与扩展步骤）。
 
@@ -36,34 +36,35 @@
 
 ## 当前支持的版本
 
-- Android 10 – Android 16 的 HyperOS
+- Android 10 – Android 17 的 HyperOS
 - LSPosed 2.2.x（libxposed API 100+）
 - Root：KernelSU / Magisk / APatch（「重启」「查看日志」需要）
 
-> Android 17 / SDK 37 / HyperOS 4 **已完成源码级适配，但尚未在真机验证**：已按真实的
-> android-37.0 平台 jar 静态核对被 hook 的公开签名，并修掉了写死签名导致的失效（详见
-> [兼容性与覆盖范围](docs/COMPATIBILITY.md) 第二节）。声明支持范围仍止于 Android 16；
-> 已覆盖能力、尚未覆盖（Native / HAL、Binder / AIDL、麦克风、摄像头、蓝牙）与待真机验证项，
-> 同样见该文档。
+> **Android 17 / SDK 37 / HyperOS 4**：已在 **Xiaomi 17 真机**（HyperOS 4 / arm64-v8a /
+> LSPosed，libxposed API 102）上验证运行。这不代表所有机型或所有 Hook 都全面兼容：
+> 已覆盖能力、尚未覆盖（Native / HAL、Binder / AIDL、麦克风、摄像头、蓝牙）与仍待验证项，
+> 见 [兼容性与覆盖范围](docs/COMPATIBILITY.md)。实际拦截效果以各自机型上的观察为准。
 
 ## 安装
 
 1. 安装 `fuckPrivacyGuard`
 2. 在 LSPosed 中启用「fuckPrivacyGuard」
-3. 打开应用，首次会向 LSPosed 请求全部作用域，允许即可；也可在 LSPosed 里手动勾选
+3. 打开应用；若当前作用域为空，会向 LSPosed 请求加入全部已安装的目标组件，允许即可，也可在 LSPosed 里手动勾选
 4. 在模块里对目标应用点一次「重启」，或点批量行的「全部重启」，让它重新加载
 
-作用域外的应用不会被注入。
+作用域外的应用不会被注入。「重启」「查看日志」「自检」需要 root。
 
-覆盖升级后，LSPosed 的作用域不会自动包含新增组件，需要到 LSPosed → 模块 → fuckPrivacyGuard → 作用域 里重新确认；1.6.x 新增的是「广告组件（MSA）」与「系统诊断」，漏勾时对应分组会显示「未在作用域，点此加入」。
+覆盖升级后，LSPosed 的作用域不会自动包含新增组件，需要到 LSPosed → 模块 → fuckPrivacyGuard → 作用域 里重新确认；漏勾时分类页该组件会标注「未加入作用域」，点进组件页可「点此加入」。
 
 ## 使用
 
-**分组开关**：每张卡片右上角是该应用的开关，等同于它在 LSPosed 里的作用域开关。组关闭时组内子项置灰不可操作。
+**作用域开关**：分类页按系统组件列出各组件（名称 / 包名 / 安装状态 / 作用域状态），点进组件二级页，右上角就是该组件在 LSPosed 里的作用域开关；未加入作用域时组内子项置灰不可操作，并给出「点此加入」。
 
-**子项开关**：可以只留某条规则，例如只要 XSOF 拦截就把域名层那项关掉。会影响系统功能的规则一律默认关闭，副标题写明代价。
+**子项开关**：每个组件页列出该组件的全部规则，可以只留某条，例如只要 XSOF 拦截就把域名层那项关掉。会影响系统功能的规则一律默认关闭，副标题写明代价。
 
 **自定义规则**：内置表没覆盖的域名可以自己补，支持「域名」「域名/路径」和「类名#方法」三种写法：前两种作用于网络出口，第三种让指定方法直接返回默认值，用于内置 hook 因类名变化失配时应急。添加后需重启对应应用才生效。写法、匹配方式与限制见 [自定义规则使用说明](docs/CUSTOM-RULES.md)。
+
+**配置同步**：开关改动经 LSPosed 的 RemotePreferences 通道下发到各目标进程，**不需要 root**；从旧版本升级时首次读取会回落一次旧的 `Settings.Global`，之后不再写入该系统设置。开关保持默认值时不会写进通道，通道里缺某个 key 不代表它关闭，以界面状态与日志为准。
 
 **重启**：改完开关点「重启」执行 `am force-stop`，应用下次启动重新注入；批量行有「全部重启」。系统常驻组件被停止后通常几秒内会被系统拉起，等于自动完成重启。
 
@@ -96,7 +97,7 @@
 | 小米统计 | `com.miui.analytics` | 整域 + DoH 旁路；默认整进程断网 |
 | 应用安装器 | `com.miui.packageinstaller` | AVL 上报、活跃统计、安装页广告位 |
 | 应用商店 | `com.xiaomi.market` | 广告配置下发、OneTrack 统计上报（`tracking.miui.com/track/`） |
-| 广告组件 | `com.miui.systemAdSolution` | 广告使用画像（今日是否打开 / 最后使用时间）、OneTrack 埋点；域名层默认不拦。勾选作用域后要点一次卡片上的「重启」，旧进程不会自动补注入 |
+| 广告组件 | `com.miui.systemAdSolution` | 广告使用画像（今日是否打开 / 最后使用时间）、OneTrack 埋点；域名层默认不拦。勾选作用域后要在组件页点一次「重启」，旧进程不会自动补注入 |
 | 小米服务框架 | `com.xiaomi.xmsf` | 广告接口、OneTrack 统计上报（`tracking.miui.com/track/`） |
 | 运营商服务 | `com.xiaomi.registration` | 明文 CTEI 上报（默认拦）、设备注册（默认关）；定位 / 基站默认关 |
 | 移动 DM | `com.miui.dmregservice` | `fxltsbl.com` 上报、App 清单、SIM 标识；基站 / Wi-Fi 扫描默认关 |
@@ -106,9 +107,7 @@
 
 ## 界面预览
 
-| 品牌图标 | 分组卡片 |
-|---|---|
-| ![品牌图标](docs/images/brand-icon.png) | ![分组卡片](docs/images/ui-cards.png) |
+![品牌图标](docs/images/brand-icon.png)
 
 2.1 起底部导航为五个页面：首页（状态 / 总开关 / 批量操作）、分类（按系统组件列出 13 组，点进组件查看该组件全部开关）、诊断（作用域 / 运行记录 / 自检）、设置（通用 / 外观 / 规则 / 日志）、关于（链接 / 致谢 / 许可）。
 
@@ -179,12 +178,17 @@ src/io/github/zeroedx/fuckprivacyguard/
 ├── CaptureHooks.java   行为库写入与静默录屏
 ├── XsofHooks.java      XSOF Provider / AIDL / 写库 / 评分 + MRM
 ├── AnalyticsHooks.java 统计方法层与签名扫描
+├── GuardHooks.java     guardprovider：AI 通话检测服务（AiGuardService）
+├── MsaHooks.java       广告组件（MSA）：使用画像与 OneTrack 埋点
+├── SystemHelperHooks.java SystemHelper 上报链路的非出口环节
 ├── Hooks.java          公共 hook 工具
 ├── Logs.java           统一日志标签
 ├── I18n.java           中英文文案查表
+├── InstallStatus.java  组件安装状态三态判定（已安装 / 未安装 / 无法确认）
 ├── MainActivity.java   宿主：导航 / 滚动 / Insets / 深浅色 / LSPosed 连接
 ├── Ui.java             自绘界面件：色板、卡片、开关行、弹窗着色
-├── Catalog.java        分组与子项的唯一来源（13 组 / 59 项）
+├── PgSwitch.java       自绘开关控件
+├── Catalog.java        分组与子项的唯一来源（13 组 / 63 项）
 ├── Page.java           页面基类
 ├── HomePage.java       首页：状态、总开关、批量操作
 ├── PgIcon.java         自绘矢量图标与字符徽标（导航 / 组件图标）
@@ -198,12 +202,11 @@ src/io/github/zeroedx/fuckprivacyguard/
 ```
 
 ```
-res/values/           app_name 等字符串资源
+res/                   app_name 等字符串资源与图标资源
 assets/               免责声明
 META-INF/xposed/      模块声明（必须打到 APK 根）
 libs/libxposed-api.jar       libxposed API（compileOnly，不打进 dex）
 libs/libxposed-service.jar   service + interface 合并版（必须打进 dex）
-libs/api-82.jar              传统 Xposed API（编译兼容用）
 docs/                 技术笔记、规则说明、截图
 build.sh              一键构建
 ```
@@ -239,6 +242,21 @@ build.sh              一键构建
 
 ## 更新日志
 
+### 2.1.0
+
+- 配置同步不再依赖 root：改用 LSPosed 的 RemotePreferences 通道（写入与读取都走框架服务，不再 `su -c settings put`）；「重启」「查看日志」等仍需 root 的功能保持不变
+- 从旧版本升级时，首次读取回落一次旧的 `Settings.Global`，之后不再写入该系统设置
+- 底部导航去掉「搜索」，保留首页 / 分类 / 诊断 / 设置 / 关于五项
+- 分类页改为按系统组件列出，显示名称、包名与安装状态，点进组件查看该组件的全部开关
+- 界面视觉改版：底部导航改为图标 + 文字、选中项高亮；组件行加入真实应用图标（取不到时用字符徽标）与状态 chip；页面加统一大标题；卡片加描边、统一圆角与间距；作用域开关与隐私功能开关分区呈现；浅色 / 深色两套色板按 HyperOS 4 习惯调整（自绘矢量图标，未引入新依赖）
+- 修复已安装系统组件被误显示为「未安装」：按包名声明 `<queries>` 并区分「已安装 / 未安装 / 无法确认」，不再把 Package Visibility 查询失败一律当成未安装
+
+### 2.0.0
+
+- 项目更名为 fuckPrivacyGuard，改为**完全独立**的应用与 LSPosed 模块：包名 `io.github.zeroedx.fuckprivacyguard`、独立正式签名证书，不再与上游 HyperPGuard 共用；**无法覆盖安装上游**，迁移需先卸载上游，作用域不会自动迁移
+- 设置界面由单页改为底部导航的多页面（首页 / 分类 / 搜索 / 诊断 / 设置 / 关于），新增品牌图标
+- 拦截逻辑、76 个配置键、默认值与作用域行为均未改动
+
 ### 1.6.9
 
 - 免责声明重排：正文按段一行，去掉 ASCII 分隔线，编号统一为 `1) `
@@ -255,27 +273,13 @@ build.sh              一键构建
 - 首次启动条款确认：摘要弹窗、版本号落盘，确认后不再弹出
 - 「关于」区域去掉多余按压反馈
 
-### 1.6.6
-
-- 安装器云端配置补 `/v3/cloud_config/query`（5.4.x 改走 v3，之前只拦 v2），「未查询到备案」提示不再出现
-- `api.ad.xiaomi.com` 等三条纯域名规则不再受「路径特征拦截」开关影响
-
-### 1.6.5
-
-- 修复深色切回浅色时大部分界面不变色（浅色色板此前只在字段初始值里）
-- 切换深浅色不再重建 Activity：弹窗不消失、就地换色，滚动位置保留
-- 按压反馈覆盖底部动作、批量行、重启、关于链接与检查更新
-- 开关改为「作用域真的变化后才切换」，带 180ms 动画，失败按真实作用域回填
-- 自定义规则页重做；行为库状态正文不可复制
-- LSPosed 断开重试 5 → 30 次，自检自动重连
-
 更早版本见 [Releases](https://github.com/zeroedx/fuckPrivacyGuard/releases) 与 `docs/RELEASE-<版本>.md`。
 
 ## 参考来源
 
 以下项目的公开资料提供了识别目标与验证思路。本项目代码独立编写，未复制、未反编译复用其实现。
 
-- **[HyperCeiler](https://github.com/ReChronoRain/HyperCeiler)**（GPL-3.0，作者 [Sevtinge](https://github.com/Sevtinge)，现维护于 [ReChronoRain](https://github.com/ReChronoRain)）— analytics 目标方法、`flash.sec.miui.com/detect/app`、安装器 `/avl/upload` 与方法层匹配思路、MRM 拦截思路
+- **[HyperCeiler](https://github.com/ReChronoRain/HyperCeiler)**（AGPL-3.0，作者 [Sevtinge](https://github.com/Sevtinge)，现维护于 [ReChronoRain](https://github.com/ReChronoRain)）— analytics 目标方法、`flash.sec.miui.com/detect/app`、安装器 `/avl/upload` 与方法层匹配思路、MRM 拦截思路
 - **[XSOF Privacy](https://github.com/yunyizea/xsof-privacy)**（作者 yunyizea）— 8 类行为记录的拦截范围、`(null, 1017)` 拒绝语义、按组组织 hook
 - **Hyper 隐私卫士**（`io.github.hyperprivacyguard`）— SystemHelper 采集入口特征、guardprovider 应用列表采集
 - **[HyperOS4-XSOF-Analysis](https://github.com/FAQQAQ/HyperOS4-XSOF-Analysis)**（作者 [FAQQAQ](https://github.com/FAQQAQ)）— 7 个组件的静态分析记录：整域范围、`om.tracking.miui.com/track/mt`、区域与备份域、DoH 重试、`framework.sec.miui.com`、`virus-engine.sec.miui.com`、地震/报警/EPS 族、`typdm.tydevice.com` 明文上报、analytics 6.33.0 的 `a.b.a.*` 结构
@@ -295,7 +299,7 @@ build.sh              一键构建
 
 - 本模块仅用于在**本人拥有完全控制权**的 Android 设备上限制预装组件的上报行为，不提供任何入侵、破解他人系统或获取他人数据的能力
 - 作者不参与、不支持商业销售、付费分发或捆绑获利；第三方分发须遵守 GPL-3.0
-- 模块默认不联网、不收集、不上传任何信息；仅在手动点设置页「检查更新」时向 GitHub API 查询一次版本号，不发送任何设备标识或使用数据；开关配置存在本地，日志只在本地 logcat 读取
+- 模块默认不联网、不收集、不上传任何信息；仅在手动点关于页「检查更新」时向 GitHub API 查询一次版本号，不发送任何设备标识或使用数据；开关配置存在本地，日志只在本地 logcat 读取
 - 「自定义规则」由使用者自行填写，其中方法级规则会直接改变目标进程内方法的返回值；模块不提供任何预置方法级规则，由此产生的应用异常或功能失效由使用者承担
 - 模块名称、包名、图标归作者所有，不得冒充官方版本
 - 与小米、中国联通等厂商无隶属或合作关系，商标归各自权利人
