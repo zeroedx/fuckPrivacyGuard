@@ -49,10 +49,34 @@ TMP="/tmp/fuckPrivacyGuard-$NAME.apk"
 cp "$APK" "$TMP"
 
 echo "发布 $DIST_REPO  版本 $NAME ($CODE)  tag=$TAG"
-gh release create "$TAG" "$TMP" \
-  --repo "$DIST_REPO" \
-  --title "$NAME" \
-  --notes-file "$NOTES"
+
+# 幂等：已存在同 tag Release 时
+#   同名 APK 的 SHA-256 相同 → 安全跳过上传
+#   已存在但 SHA-256 不同 → 报错停止，绝不覆盖、绝不删除
+if gh release view "$TAG" --repo "$DIST_REPO" >/dev/null 2>&1; then
+  echo "已存在 Release $TAG，检查附件"
+  if gh release view "$TAG" --repo "$DIST_REPO" --json assets \
+       --jq '.assets[].name' | grep -qxF "fuckPrivacyGuard-$NAME.apk"; then
+    rm -rf /tmp/fpg-existing && mkdir -p /tmp/fpg-existing
+    gh release download "$TAG" --repo "$DIST_REPO" \
+      --pattern "fuckPrivacyGuard-$NAME.apk" --dir /tmp/fpg-existing --clobber
+    EXIST_SHA=$(sha256sum "/tmp/fpg-existing/fuckPrivacyGuard-$NAME.apk" | awk '{print $1}')
+    if [ "$EXIST_SHA" = "$LOCAL_SHA" ]; then
+      echo "分发仓 APK SHA-256 相同，安全跳过上传"
+    else
+      echo "分发仓 APK SHA-256 与构建件不同：$EXIST_SHA != $LOCAL_SHA；停止，不覆盖、不删除" >&2
+      exit 1
+    fi
+  else
+    echo "Release $TAG 已存在但缺少附件；仅补传该附件（不删除其它资产）"
+    gh release upload "$TAG" "$TMP" --repo "$DIST_REPO"
+  fi
+else
+  gh release create "$TAG" "$TMP" \
+    --repo "$DIST_REPO" \
+    --title "$NAME" \
+    --notes-file "$NOTES"
+fi
 
 # 回读分发仓资产并比对 SHA-256，逐字节一致才算同步成功
 rm -rf /tmp/fpg-verify && mkdir -p /tmp/fpg-verify

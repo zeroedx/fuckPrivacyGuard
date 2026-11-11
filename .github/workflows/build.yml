@@ -6,9 +6,20 @@ on:
     tags: [ 'v*', '[0-9]*-*' ]
   pull_request:
   workflow_dispatch:
+    inputs:
+      sign_only:
+        description: '仅做正式签名验证（不发布、不打 Tag、不建 Release）'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
+
+# 同一 ref 串行执行，防止同一 Tag 并发发布；
+# 正式发布（tag）绝不取消正在运行的实例，非发布构建才取消被取代的旧实例。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
   build:
@@ -83,7 +94,7 @@ jobs:
       # 需要在仓库 Secrets 中配置：SIGNING_KEYSTORE_B64（keystore 的 base64）、
       # SIGNING_KEY_ALIAS、SIGNING_STORE_PASS、SIGNING_KEY_PASS、SIGNING_CERT_SHA256。
       - name: Prepare signing material
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') || inputs.sign_only
         env:
           SIGNING_KEYSTORE_B64: ${{ secrets.SIGNING_KEYSTORE_B64 }}
           SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
@@ -111,7 +122,7 @@ jobs:
       # 非 tag 构建（push/PR）只做冒烟：不签名也能验证编译与打包流程。
       # 用一次性本地密钥仅用于让 build.sh 跑完，产物不上传为发布件。
       - name: Ephemeral signing (non-release)
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        if: ${{ !startsWith(github.ref, 'refs/tags/') && !inputs.sign_only }}
         run: |
           set -e
           KS="$RUNNER_TEMP/ephemeral.jks"
@@ -146,6 +157,30 @@ jobs:
           path: fuckPrivacyGuard.apk
           if-no-files-found: error
 
+      # workflow_dispatch 仅签名验证：用正式密钥签名并校验包名 / 版本 / 证书指纹，
+      # 不发布、不打 Tag、不建 Release。正式发布仍只走 v* tag。
+      - name: Sign-only verification (workflow_dispatch)
+        if: inputs.sign_only
+        run: |
+          set -e
+          echo "包名/版本："
+          "$AAPT2" dump badging fuckPrivacyGuard.apk | head -1
+          CERT=$("$APKSIGNER" verify --print-certs fuckPrivacyGuard.apk 2>/dev/null \
+            | sed -n 's/.*certificate SHA-256 digest: //p' | head -1 | tr -d '\r' | tr 'A-F' 'a-f' | tr -d ':')
+          echo "证书 SHA-256：$CERT"
+          if [ "$CERT" != "$EXPECT_SHA256" ]; then
+            echo "::error::签名证书 SHA-256 与 EXPECT_SHA256 不一致：$CERT != $EXPECT_SHA256"
+            exit 1
+          fi
+          {
+            echo "## 仅签名验证（未发布）"
+            echo ""
+            echo "- 证书 SHA-256：\`$CERT\`"
+            echo "- 期望值：\`$EXPECT_SHA256\` ✅"
+            echo "- APK SHA-256：\`$APK_SHA256\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "仅签名验证通过（未发布、未打 Tag、未建 Release）"
+
       # 发布元数据：从 tag 推版本号、选择发布说明、生成带版本的资产名
       # 发布统一走 `v*` tag（如 v2.1.1），一次完成「主仓 Release → 校验 → LSPosed 同步」
       - name: Prepare release metadata
@@ -177,16 +212,42 @@ jobs:
           } >> "$GITHUB_ENV"
           echo "release notes: $F (version $V, asset $ASSET)"
 
-      # 发布顺序第 1 步：主仓 Release（仅 v* tag）。附件用带版本的资产名。
-      - name: Publish main repo Release
+      # 发布顺序第 1 步：主仓 Release（仅 v* tag）。幂等：
+      #   已存在同 tag Release 且同名 APK 的 SHA-256 相同 → 安全跳过上传
+      #   已存在但 SHA-256 不同 → 报错停止，绝不覆盖、绝不删除
+      - name: Publish main repo Release (idempotent)
         id: main_release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          name: fuckPrivacyGuard ${{ env.RELEASE_VER }}
-          body_path: ${{ env.RELEASE_BODY }}
-          files: ${{ env.RELEASE_ASSET }}
-          fail_on_unmatched_files: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          MAIN_TAG="$GITHUB_REF_NAME"
+          echo "主仓 $MAIN_REPO tag=$MAIN_TAG asset=$RELEASE_ASSET 期望 sha256=$APK_SHA256"
+          if gh release view "$MAIN_TAG" --repo "$MAIN_REPO" >/dev/null 2>&1; then
+            echo "已存在主仓 Release $MAIN_TAG，检查附件"
+            if gh release view "$MAIN_TAG" --repo "$MAIN_REPO" --json assets \
+                 --jq '.assets[].name' | grep -qxF "$RELEASE_ASSET"; then
+              rm -rf /tmp/main-existing && mkdir -p /tmp/main-existing
+              gh release download "$MAIN_TAG" --repo "$MAIN_REPO" \
+                --pattern "$RELEASE_ASSET" --dir /tmp/main-existing --clobber
+              EXIST_SHA=$(sha256sum "/tmp/main-existing/$RELEASE_ASSET" | awk '{print $1}')
+              if [ "$EXIST_SHA" = "$APK_SHA256" ]; then
+                echo "主仓 Release 附件 SHA-256 相同，安全跳过上传"
+              else
+                echo "::error::主仓 Release 附件 SHA-256 与本次构建不同：$EXIST_SHA != $APK_SHA256；停止，不覆盖、不删除"
+                exit 1
+              fi
+            else
+              echo "Release $MAIN_TAG 已存在但缺少附件 $RELEASE_ASSET；仅补传该附件（不删除其它资产）"
+              gh release upload "$MAIN_TAG" "$RELEASE_ASSET" --repo "$MAIN_REPO"
+            fi
+          else
+            echo "创建主仓 Release $MAIN_TAG"
+            gh release create "$MAIN_TAG" "$RELEASE_ASSET" --repo "$MAIN_REPO" \
+              --title "fuckPrivacyGuard $RELEASE_VER" --notes-file "$RELEASE_BODY"
+          fi
+          echo "MAIN_RELEASE_OK=true" >> "$GITHUB_ENV"
 
       # 发布顺序第 2 步：下载主仓 Release 的 APK 并校验 SHA-256（必须与构建件逐字节一致）
       - name: Verify main repo Release APK
@@ -273,8 +334,23 @@ jobs:
           [ -f "$NOTES" ] || NOTES="docs/RELEASE.md"
           cp "$SRC" "/tmp/lsposed-$NAME.apk"
           if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
-            gh release delete-asset "$TAG" "fuckPrivacyGuard-$NAME.apk" --repo "$REPO" --yes 2>/dev/null || true
-            gh release upload "$TAG" "/tmp/lsposed-$NAME.apk" --repo "$REPO"
+            echo "分发仓已存在 Release $TAG，检查附件"
+            if gh release view "$TAG" --repo "$REPO" --json assets \
+                 --jq '.assets[].name' | grep -qxF "fuckPrivacyGuard-$NAME.apk"; then
+              rm -rf /tmp/lsposed-existing && mkdir -p /tmp/lsposed-existing
+              gh release download "$TAG" --repo "$REPO" \
+                --pattern "fuckPrivacyGuard-$NAME.apk" --dir /tmp/lsposed-existing --clobber
+              EXIST_SHA=$(sha256sum "/tmp/lsposed-existing/fuckPrivacyGuard-$NAME.apk" | awk '{print $1}')
+              if [ "$EXIST_SHA" = "$LOCAL_SHA" ]; then
+                echo "分发仓 APK SHA-256 相同，安全跳过上传"
+              else
+                echo "::error::分发仓 APK SHA-256 与主仓 Release 不同：$EXIST_SHA != $LOCAL_SHA；停止，不覆盖、不删除"
+                exit 1
+              fi
+            else
+              echo "Release $TAG 已存在但缺少附件；仅补传该附件（不删除其它资产）"
+              gh release upload "$TAG" "/tmp/lsposed-$NAME.apk" --repo "$REPO"
+            fi
           else
             gh release create "$TAG" "/tmp/lsposed-$NAME.apk" --repo "$REPO" \
               --title "$NAME" --notes-file "$NOTES"
